@@ -1,0 +1,14 @@
+.App {
+  min-height: 100vh;
+  background-color: #fff;
+}
+
+/* Color Variables */
+:root {
+  --primary-red: #E63946;
+  --primary-orange: #F77F00;
+  --dark-text: #1a1a1a;
+  --light-text: #ffffff;
+  --border-color: #000;
+}
+
