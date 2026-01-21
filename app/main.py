@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
 from app.database import init_db
 from app.routes import api_router
+from app.models import Lead, User  # noqa: F401 - imported for metadata registration
 
 logger = logging.getLogger(__name__)
 
