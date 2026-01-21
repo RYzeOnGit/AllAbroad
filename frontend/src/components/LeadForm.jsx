@@ -27,8 +27,15 @@ const LeadForm = () => {
     setLoading(true)
     setMessage({ type: '', text: '' })
 
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/aeef1879-87f6-4fbb-aee6-201e99f8a741',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LeadForm.jsx:25',message:'handleSubmit called',data:{url:'/api/leads',formData:formData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     try {
       const response = await axios.post('/api/leads', formData)
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/aeef1879-87f6-4fbb-aee6-201e99f8a741',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LeadForm.jsx:31',message:'POST request succeeded',data:{status:response.status,statusText:response.statusText},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       setMessage({ 
         type: 'success', 
         text: 'Thank you! We\'ll be in touch soon.' 
@@ -44,7 +51,10 @@ const LeadForm = () => {
         source: 'website'
       })
     } catch (error) {
-      const errorMsg = error.response?.data?.detail || 'Something went wrong. Please try again.'
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/aeef1879-87f6-4fbb-aee6-201e99f8a741',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LeadForm.jsx:46',message:'POST request failed',data:{errorMessage:error.message,status:error.response?.status,statusText:error.response?.statusText,data:error.response?.data,url:error.config?.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      const errorMsg = error.response?.data?.detail || error.response?.statusText || error.message || 'Something went wrong. Please try again.'
       setMessage({ 
         type: 'error', 
         text: errorMsg 

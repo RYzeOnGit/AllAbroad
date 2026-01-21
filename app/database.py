@@ -3,23 +3,24 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.config import settings
 
-# Convert postgresql:// to postgresql+asyncpg:// for async support
-# Handle both postgresql:// and postgresql+asyncpg:// formats
-if settings.database_url.startswith("postgresql://"):
-    database_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-elif settings.database_url.startswith("postgresql+asyncpg://"):
-    database_url = settings.database_url
+raw_url = settings.database_url
+
+# Support both Postgres (asyncpg) and SQLite (aiosqlite) for local dev
+if raw_url.startswith("postgresql://"):
+    database_url = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif raw_url.startswith("postgresql+asyncpg://"):
+    database_url = raw_url
+elif raw_url.startswith("postgres://"):
+    database_url = raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
 else:
-    # For Supabase or other providers that might use different formats
-    database_url = settings.database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    # Assume URL is already a fully-qualified async SQLAlchemy URL (e.g. sqlite+aiosqlite:///./allabroad.db)
+    database_url = raw_url
 
 # Create async database engine
 engine = create_async_engine(
     database_url,
     echo=settings.environment == "development",
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
 )
 
 # Create async session factory
