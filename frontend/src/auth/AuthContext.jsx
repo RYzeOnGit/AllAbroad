@@ -1,23 +1,26 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(null)
-  const [role, setRole] = useState(null)
+  const [token, setToken] = useState(localStorage.getItem('token') || null)
+  const [role, setRole] = useState(localStorage.getItem('role') || null)
 
-  const login = (nextToken, nextRole) => {
-    setToken(nextToken)
-    setRole(nextRole)
+  const login = (accessToken, userRole) => {
+    setToken(accessToken)
+    setRole(userRole)
+    localStorage.setItem('token', accessToken)
+    localStorage.setItem('role', userRole)
   }
 
   const logout = () => {
     setToken(null)
     setRole(null)
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
   }
 
-  const value = useMemo(() => ({ token, role, login, logout }), [token, role])
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ token, role, login, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

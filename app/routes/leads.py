@@ -1,4 +1,4 @@
-"""Lead submission endpoint."""
+"""Lead submission and management endpoints."""
 import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
 from app.models.lead import Lead
+from app.models.user import User
 from app.schemas.lead import LeadCreate, LeadResponse
 from app.utils.validation import validate_lead_data
+from app.utils.auth import get_current_user, require_role
 
-router = APIRouter()
+router = APIRouter(tags=["leads"])
 
 # #region agent log
 import os
@@ -24,11 +26,11 @@ def _debug_log(location, message, data, hypothesis_id):
 
 
 @router.post(
-    "",
+    "/leads",
     response_model=LeadResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Submit a new lead",
-    description="Capture and store a new study-abroad lead with validation and duplicate prevention."
+    description="Capture and store a new study-abroad lead with validation and duplicate prevention. PUBLIC endpoint - no authentication required."
 )
 async def create_lead(
     lead_data: LeadCreate,
@@ -104,5 +106,97 @@ async def create_lead(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while processing your request"
+        )
+
+
+@router.get(
+    "/v1/leads",
+    response_model=list[LeadResponse],
+    summary="Get all leads",
+    description="Retrieve all leads. PROTECTED - requires staff authentication (admin, manager, or counselor)."
+)
+async def get_leads(
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_role("admin", "manager", "counselor"))
+) -> list[LeadResponse]:
+    """
+    Get all leads (protected - admin/staff only).
+    
+    Requires valid JWT token with admin, manager, or counselor role.
+    """
+    # #region agent log
+    _debug_log("app/routes/leads.py:110", "GET /api/v1/leads called", {"user_id": current_user.id, "role": current_user.role}, "C")
+    # #endregion
+    
+    try:
+        statement = select(Lead)
+        result = await session.execute(statement)
+        leads = result.scalars().all()
+        
+        # #region agent log
+        _debug_log("app/routes/leads.py:118", "Leads retrieved successfully", {"count": len(leads)}, "C")
+        # #endregion
+        
+        return [LeadResponse.model_validate(lead) for lead in leads]
+    
+    except Exception as e:
+        # #region agent log
+        _debug_log("app/routes/leads.py:122", "Error retrieving leads", {"error_type": type(e).__name__, "error": str(e)}, "C")
+        # #endregion
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve leads"
+        )
+
+
+@router.get(
+    "/v1/leads/{lead_id}",
+    response_model=LeadResponse,
+    summary="Get single lead",
+    description="Retrieve a specific lead by ID. PROTECTED - requires staff authentication."
+)
+async def get_lead(
+    lead_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_role("admin", "manager", "counselor"))
+) -> LeadResponse:
+    """
+    Get a single lead by ID (protected - admin/staff only).
+    
+    Requires valid JWT token with admin, manager, or counselor role.
+    """
+    # #region agent log
+    _debug_log("app/routes/leads.py:145", "GET /api/v1/leads/{lead_id} called", {"lead_id": lead_id, "user_id": current_user.id}, "C")
+    # #endregion
+    
+    try:
+        statement = select(Lead).where(Lead.id == lead_id)
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+        
+        if not lead:
+            # #region agent log
+            _debug_log("app/routes/leads.py:152", "Lead not found", {"lead_id": lead_id}, "C")
+            # #endregion
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found"
+            )
+        
+        # #region agent log
+        _debug_log("app/routes/leads.py:158", "Lead retrieved successfully", {"lead_id": lead.id}, "C")
+        # #endregion
+        
+        return LeadResponse.model_validate(lead)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        # #region agent log
+        _debug_log("app/routes/leads.py:164", "Error retrieving lead", {"lead_id": lead_id, "error_type": type(e).__name__, "error": str(e)}, "C")
+        # #endregion
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve lead"
         )
 
