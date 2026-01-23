@@ -1,7 +1,7 @@
 """Lead submission and management endpoints."""
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
@@ -21,7 +21,8 @@ def _debug_log(location, message, data, hypothesis_id):
         os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
         with open(LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":hypothesis_id,"location":location,"message":message,"data":data,"timestamp":int(datetime.now().timestamp()*1000)}) + "\n")
-    except: pass
+    except:  # pragma: no cover - defensive logging
+        pass
 # #endregion
 
 
@@ -111,41 +112,73 @@ async def create_lead(
 
 @router.get(
     "/v1/leads",
-    response_model=list[LeadResponse],
-    summary="Get all leads",
-    description="Retrieve all leads. PROTECTED - requires staff authentication (admin, manager, or counselor)."
+    summary="Get paginated leads",
+    description="Retrieve leads with pagination and optional status filter. PROTECTED - requires staff authentication (admin, manager, or counselor)."
 )
 async def get_leads(
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(20, ge=1, le=100, description="Number of items per page"),
+    status_filter: str | None = Query(None, description="Optional status filter"),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor"))
-) -> list[LeadResponse]:
+    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+):
     """
-    Get all leads (protected - admin/staff only).
-    
-    Requires valid JWT token with admin, manager, or counselor role.
+    Get leads with pagination (protected - admin/staff only).
+
+    Returns a JSON payload with items and pagination metadata.
     """
     # #region agent log
-    _debug_log("app/routes/leads.py:110", "GET /api/v1/leads called", {"user_id": current_user.id, "role": current_user.role}, "C")
+    _debug_log(
+        "app/routes/leads.py:110",
+        "GET /api/v1/leads called",
+        {"user_id": current_user.id, "role": current_user.role, "page": page, "page_size": page_size, "status": status_filter},
+        "C",
+    )
     # #endregion
-    
+
     try:
-        statement = select(Lead)
-        result = await session.execute(statement)
-        leads = result.scalars().all()
-        
+        base_query = select(Lead)
+        if status_filter:
+            base_query = base_query.where(Lead.status == status_filter)
+
+        # Total count
+        count_result = await session.execute(base_query)
+        all_leads = count_result.scalars().all()
+        total = len(all_leads)
+
+        # Pagination
+        offset = (page - 1) * page_size
+        paginated_items = all_leads[offset : offset + page_size]
+
         # #region agent log
-        _debug_log("app/routes/leads.py:118", "Leads retrieved successfully", {"count": len(leads)}, "C")
+        _debug_log(
+            "app/routes/leads.py:118",
+            "Leads retrieved successfully",
+            {"count": len(paginated_items), "total": total},
+            "C",
+        )
         # #endregion
-        
-        return [LeadResponse.model_validate(lead) for lead in leads]
-    
+
+        return {
+            "items": [LeadResponse.model_validate(lead) for lead in paginated_items],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
+
     except Exception as e:
         # #region agent log
-        _debug_log("app/routes/leads.py:122", "Error retrieving leads", {"error_type": type(e).__name__, "error": str(e)}, "C")
+        _debug_log(
+            "app/routes/leads.py:122",
+            "Error retrieving leads",
+            {"error_type": type(e).__name__, "error": str(e)},
+            "C",
+        )
         # #endregion
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve leads"
+            detail="Failed to retrieve leads",
         )
 
 
@@ -198,5 +231,221 @@ async def get_lead(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve lead"
+        )
+
+
+@router.patch(
+    "/v1/leads/{lead_id}/status",
+    summary="Update lead status",
+    description="Update the status of a lead (e.g., new, contacted, qualified, won, lost). PROTECTED - requires staff authentication."
+)
+async def update_lead_status(
+    lead_id: int,
+    new_status: str = Query(..., min_length=2, max_length=50),
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+) -> LeadResponse:
+    """
+    Update the status of a single lead.
+    """
+    try:
+        statement = select(Lead).where(Lead.id == lead_id)
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found",
+            )
+
+        lead.status = new_status.strip().lower()
+        await session.commit()
+        await session.refresh(lead)
+
+        return LeadResponse.model_validate(lead)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update lead status",
+        )
+
+
+@router.get(
+    "/v1/leads/stats",
+    summary="Get lead statistics",
+    description="Comprehensive statistics with conversion rates, trends, source performance, and actionable insights. PROTECTED - requires staff authentication."
+)
+async def get_lead_stats(
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+):
+    """
+    Return comprehensive statistics for leads with conversion metrics, trends, and performance data.
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        statement = select(Lead)
+        result = await session.execute(statement)
+        leads = result.scalars().all()
+
+        total = len(leads)
+        if total == 0:
+            return {
+                "total": 0,
+                "by_status": {},
+                "recent": [],
+                "conversion_rates": {},
+                "trends": {},
+                "source_performance": {},
+                "country_analytics": {},
+                "time_metrics": {},
+            }
+
+        # Status breakdown
+        by_status: dict[str, int] = {}
+        for lead in leads:
+            status_key = (lead.status or "unknown").lower()
+            by_status[status_key] = by_status.get(status_key, 0) + 1
+
+        # Conversion rates (logical business metrics)
+        conversion_rates = {
+            "qualified_rate": round((by_status.get("qualified", 0) / total * 100), 1) if total > 0 else 0,
+            "won_rate": round((by_status.get("won", 0) / total * 100), 1) if total > 0 else 0,
+            "lost_rate": round((by_status.get("lost", 0) / total * 100), 1) if total > 0 else 0,
+            "contact_rate": round((by_status.get("contacted", 0) / total * 100), 1) if total > 0 else 0,
+        }
+        
+        # Calculate win rate from qualified leads (more meaningful metric)
+        qualified_count = by_status.get("qualified", 0)
+        if qualified_count > 0:
+            conversion_rates["qualified_to_win_rate"] = round(
+                (by_status.get("won", 0) / qualified_count * 100), 1
+            )
+        else:
+            conversion_rates["qualified_to_win_rate"] = 0
+
+        # Time-based trends (last 7 days, 30 days)
+        now = datetime.utcnow()
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
+        
+        leads_this_week = [l for l in leads if l.created_at >= week_ago]
+        leads_this_month = [l for l in leads if l.created_at >= month_ago]
+        
+        # Previous periods for comparison
+        two_weeks_ago = now - timedelta(days=14)
+        two_months_ago = now - timedelta(days=60)
+        
+        prev_week_leads = [l for l in leads if two_weeks_ago <= l.created_at < week_ago]
+        prev_month_leads = [l for l in leads if two_months_ago <= l.created_at < month_ago]
+        
+        # Calculate growth rates
+        week_growth = 0
+        if len(prev_week_leads) > 0:
+            week_growth = round(((len(leads_this_week) - len(prev_week_leads)) / len(prev_week_leads) * 100), 1)
+        elif len(leads_this_week) > 0:
+            week_growth = 100  # New period
+        
+        month_growth = 0
+        if len(prev_month_leads) > 0:
+            month_growth = round(((len(leads_this_month) - len(prev_month_leads)) / len(prev_month_leads) * 100), 1)
+        elif len(leads_this_month) > 0:
+            month_growth = 100  # New period
+
+        trends = {
+            "leads_this_week": len(leads_this_week),
+            "leads_this_month": len(leads_this_month),
+            "week_growth": week_growth,
+            "month_growth": month_growth,
+            "avg_daily_leads_week": round(len(leads_this_week) / 7, 1) if len(leads_this_week) > 0 else 0,
+            "avg_daily_leads_month": round(len(leads_this_month) / 30, 1) if len(leads_this_month) > 0 else 0,
+        }
+
+        # Source performance (which sources generate most leads and conversions)
+        source_stats: dict[str, dict] = {}
+        for lead in leads:
+            source = (lead.source or "unknown").lower()
+            if source not in source_stats:
+                source_stats[source] = {"total": 0, "won": 0, "qualified": 0}
+            source_stats[source]["total"] += 1
+            status_lower = (lead.status or "").lower()
+            if status_lower == "won":
+                source_stats[source]["won"] += 1
+            if status_lower == "qualified":
+                source_stats[source]["qualified"] += 1
+        
+        # Calculate conversion rates per source
+        source_performance = {}
+        for source, data in source_stats.items():
+            source_performance[source] = {
+                "total": data["total"],
+                "won": data["won"],
+                "qualified": data["qualified"],
+                "conversion_rate": round((data["won"] / data["total"] * 100), 1) if data["total"] > 0 else 0,
+                "qualified_rate": round((data["qualified"] / data["total"] * 100), 1) if data["total"] > 0 else 0,
+            }
+        
+        # Sort sources by total leads (most productive first)
+        source_performance = dict(sorted(source_performance.items(), key=lambda x: x[1]["total"], reverse=True))
+
+        # Country analytics (top source countries and target countries)
+        source_countries: dict[str, int] = {}
+        target_countries: dict[str, int] = {}
+        for lead in leads:
+            src_country = (lead.country or "unknown").lower()
+            tgt_country = (lead.target_country or "unknown").lower()
+            source_countries[src_country] = source_countries.get(src_country, 0) + 1
+            target_countries[tgt_country] = target_countries.get(tgt_country, 0) + 1
+        
+        # Get top 5 for each
+        top_source_countries = dict(sorted(source_countries.items(), key=lambda x: x[1], reverse=True)[:5])
+        top_target_countries = dict(sorted(target_countries.items(), key=lambda x: x[1], reverse=True)[:5])
+
+        country_analytics = {
+            "top_source_countries": top_source_countries,
+            "top_target_countries": top_target_countries,
+        }
+
+        # Time metrics (average age of leads by status)
+        time_metrics = {}
+        status_groups = {}
+        for lead in leads:
+            status_key = (lead.status or "unknown").lower()
+            if status_key not in status_groups:
+                status_groups[status_key] = []
+            status_groups[status_key].append(lead)
+        
+        for status_key, status_leads in status_groups.items():
+            if status_leads:
+                ages = [(now - l.created_at).days for l in status_leads]
+                time_metrics[status_key] = {
+                    "avg_age_days": round(sum(ages) / len(ages), 1),
+                    "oldest_days": max(ages),
+                    "newest_days": min(ages),
+                }
+
+        # Sort by created_at descending for "recent" list
+        recent = sorted(leads, key=lambda l: l.created_at, reverse=True)[:10]
+
+        return {
+            "total": total,
+            "by_status": by_status,
+            "recent": [LeadResponse.model_validate(l) for l in recent],
+            "conversion_rates": conversion_rates,
+            "trends": trends,
+            "source_performance": source_performance,
+            "country_analytics": country_analytics,
+            "time_metrics": time_metrics,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve lead statistics: {str(e)}",
         )
 
