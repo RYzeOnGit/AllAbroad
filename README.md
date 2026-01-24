@@ -12,8 +12,19 @@ pip install -r requirements.txt
 2. Configure environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your Supabase PostgreSQL connection string
+# Edit .env with your credentials
 ```
+
+The default configuration uses SQLite for local development:
+```
+DATABASE_URL=sqlite+aiosqlite:///./allabroad.db
+```
+
+Generate a secure JWT secret:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+Copy the output and paste it as your `JWT_SECRET` in the `.env` file.
 
 3. Run the application:
 ```bash
@@ -23,9 +34,14 @@ uvicorn app.main:app --reload
 ## Deployment on Render
 
 1. Set environment variables in Render dashboard:
-   - `DATABASE_URL`: Your Supabase PostgreSQL connection string
+   - `DATABASE_URL`: Your PostgreSQL connection string (e.g., Supabase)
    - `ENVIRONMENT`: `production`
    - `LOG_LEVEL`: `INFO`
+   - `ADMIN_EMAIL`: Admin user email
+   - `ADMIN_PASSWORD`: Admin user password
+   - `JWT_SECRET`: Generate using `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+   - `JWT_ALGORITHM`: `HS256`
+   - `ACCESS_TOKEN_EXPIRE_MINUTES`: `15`
 
 2. Build command: `pip install -r requirements.txt`
 
@@ -33,5 +49,9 @@ uvicorn app.main:app --reload
 
 ## API Endpoints
 
-- `POST /leads` - Submit a new lead
-
+- `POST /api/leads` – Submit a new lead (public)
+- `POST /api/auth/login` – Staff login, returns JWT (protected)
+- `GET /api/v1/leads` – List all leads (requires admin/manager/counselor)
+- `GET /api/v1/leads/{lead_id}` – Get a single lead (requires admin/manager/counselor)
+- `GET /` – Health check
+- `GET /health` – Health check
