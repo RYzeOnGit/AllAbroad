@@ -6,7 +6,7 @@ import About from './components/About'
 import LeadForm from './components/LeadForm'
 import Footer from './components/Footer'
 import AdminLogin from './components/AdminLogin'
-import AdminDashboard from './components/AdminDashboard'
+import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage } from './components/AdminDashboard'
 import NoAccess from './components/NoAccess'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './auth/AuthContext'
@@ -38,7 +38,11 @@ function App() {
                 <AdminDashboard />
               </ProtectedRoute>
             )}
-          />
+          >
+            <Route index element={<AdminLeadsPage />} />
+            <Route path="kanban" element={<AdminKanbanPage />} />
+            <Route path="stats" element={<AdminStatsPage />} />
+          </Route>
           <Route path="/admin/no-access" element={<NoAccess />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
