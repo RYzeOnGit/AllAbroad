@@ -891,6 +891,257 @@ export function AdminStatsPage() {
   )
 }
 
+export function AdminProfilePage() {
+  const { token, logout } = useAuth()
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  useEffect(() => {
+    let mounted = true
+    async function fetchMe() {
+      setLoading(true)
+      setError('')
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { ...authHeaders } })
+        if (res.status === 401 || res.status === 403) {
+          setError('Session expired or no access. Please log in again.')
+          return
+        }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.detail || 'Failed to load profile')
+        }
+        const data = await res.json()
+        if (mounted) setProfile(data)
+      } catch (err) {
+        if (mounted) setError(err.message || 'Failed to load profile')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    fetchMe()
+    return () => { mounted = false }
+  }, [token])
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordSuccess('')
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New password and confirmation do not match.')
+      return
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.')
+      return
+    }
+    setPasswordLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/auth/me/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 401) {
+        setPasswordError(data.detail || 'Current password is incorrect.')
+        return
+      }
+      if (!res.ok) {
+        setPasswordError(data.detail || 'Failed to update password.')
+        return
+      }
+      setPasswordSuccess('Password updated successfully.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setPasswordError(err.message || 'Failed to update password.')
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
+  const handleDeleteOpen = () => {
+    setDeleteConfirm('')
+    setDeleteError('')
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteClose = () => {
+    setShowDeleteModal(false)
+    setDeleteConfirm('')
+    setDeleteError('')
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirm !== 'DELETE') return
+    setDeleteError('')
+    setDeleteLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, { method: 'DELETE', headers: { ...authHeaders } })
+      if (res.status === 400) {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError(data.detail || 'Cannot delete account.')
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError(data.detail || 'Failed to delete account.')
+        return
+      }
+      logout()
+      navigate('/admin/login')
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete account.')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
+  const deleteConfirmValid = deleteConfirm === 'DELETE'
+
+  return (
+    <div>
+      <header className="admin-header">
+        <h1>Profile</h1>
+        <p>Manage your account: change password or delete your profile.</p>
+      </header>
+      {error && <div className="admin-alert">{error}</div>}
+      {loading && <div className="admin-loading">Loading profile...</div>}
+
+      {!loading && profile && (
+        <>
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Profile info</h3>
+              <span className="panel-subtitle">Your account details</span>
+            </div>
+            <div className="profile-info">
+              <div className="profile-info-row">
+                <span className="profile-label">Email</span>
+                <span className="profile-value">{profile.email}</span>
+              </div>
+              <div className="profile-info-row">
+                <span className="profile-label">Full name</span>
+                <span className="profile-value">{profile.full_name}</span>
+              </div>
+              <div className="profile-info-row">
+                <span className="profile-label">Role</span>
+                <span className="profile-value">{profile.role}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <h3>Change password</h3>
+              <span className="panel-subtitle">Set a new password (min 8 characters)</span>
+            </div>
+            <form className="profile-form" onSubmit={handleChangePassword}>
+              {passwordError && <div className="admin-alert">{passwordError}</div>}
+              {passwordSuccess && <div className="profile-success">{passwordSuccess}</div>}
+              <div className="profile-form-group">
+                <label htmlFor="current-password">Current password</label>
+                <input
+                  id="current-password"
+                  type="password"
+                  className="admin-search-input"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="profile-form-group">
+                <label htmlFor="new-password">New password</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  className="admin-search-input"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <div className="profile-form-group">
+                <label htmlFor="confirm-password">Confirm new password</label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  className="admin-search-input"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <button type="submit" className="nav-link" disabled={passwordLoading}>
+                {passwordLoading ? 'Updating…' : 'Update password'}
+              </button>
+            </form>
+          </div>
+
+          <div className="panel profile-danger">
+            <div className="panel-header">
+              <h3>Delete account</h3>
+              <span className="panel-subtitle">Permanently remove your account. This cannot be undone.</span>
+            </div>
+            <button type="button" className="logout-btn" onClick={handleDeleteOpen}>
+              Delete my account
+            </button>
+          </div>
+        </>
+      )}
+
+      {showDeleteModal && (
+        <div className="profile-modal-overlay" onClick={handleDeleteClose}>
+          <div className="profile-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Delete account</h3>
+            <p>Type <strong>DELETE</strong> below to confirm. Your account will be permanently removed.</p>
+            {deleteError && <div className="admin-alert">{deleteError}</div>}
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Type DELETE to confirm"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              autoComplete="off"
+            />
+            <div className="profile-modal-actions">
+              <button type="button" className="nav-link" onClick={handleDeleteClose}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="logout-btn"
+                onClick={handleDeleteConfirm}
+                disabled={!deleteConfirmValid || deleteLoading}
+              >
+                {deleteLoading ? 'Deleting…' : 'Yes, delete my account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AdminApprovalsPage() {
   const { token, role } = useAuth()
   const [pendingUsers, setPendingUsers] = useState([])
@@ -1052,9 +1303,17 @@ export default function AdminDashboard() {
             </NavLink>
           )}
         </nav>
-        <button className="logout-btn" onClick={handleLogout}>
-          Logout
-        </button>
+        <div className="sidebar-bottom">
+          <NavLink
+            to="/admin/dashboard/profile"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            Profile
+          </NavLink>
+          <button className="logout-btn" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </aside>
       <main className="admin-main">
         <Outlet />

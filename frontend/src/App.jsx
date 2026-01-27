@@ -7,7 +7,7 @@ import LeadForm from './components/LeadForm'
 import Footer from './components/Footer'
 import AdminLogin from './components/AdminLogin'
 import SignupForm from './components/SignupForm'
-import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage, AdminApprovalsPage } from './components/AdminDashboard'
+import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage, AdminProfilePage, AdminApprovalsPage } from './components/AdminDashboard'
 import NoAccess from './components/NoAccess'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './auth/AuthContext'
@@ -44,6 +44,7 @@ function App() {
             <Route index element={<AdminLeadsPage />} />
             <Route path="kanban" element={<AdminKanbanPage />} />
             <Route path="stats" element={<AdminStatsPage />} />
+            <Route path="profile" element={<AdminProfilePage />} />
             <Route path="approvals" element={<AdminApprovalsPage />} />
           </Route>
           <Route path="/admin/no-access" element={<NoAccess />} />

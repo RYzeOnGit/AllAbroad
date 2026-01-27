@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import './SignupForm.css'
 
 export default function SignupForm() {
   const [fullName, setFullName] = useState('')
@@ -59,70 +60,74 @@ export default function SignupForm() {
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <div style={{ background: 'white', padding: 40, borderRadius: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '100%', maxWidth: 400 }}>
-        <h1 style={{ textAlign: 'center', marginBottom: 30, color: '#333' }}>Sign Up</h1>
-        
-        {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 4, marginBottom: 20, border: '1px solid #f5c6cb' }}>{error}</div>}
-        
-        {success && <div style={{ background: '#d4edda', color: '#155724', padding: 12, borderRadius: 4, marginBottom: 20, border: '1px solid #c3e6cb' }}>{success}</div>}
-        
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="auth-title">Sign Up</h1>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        {success && <div className="auth-success">{success}</div>}
+
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Full Name</label>
+          <div className="auth-form-group">
+            <label className="auth-label" htmlFor="signup-fullname">Full Name</label>
             <input
+              id="signup-fullname"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
+              className="auth-input"
             />
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Email</label>
+          <div className="auth-form-group">
+            <label className="auth-label" htmlFor="signup-email">Email</label>
             <input
+              id="signup-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
+              className="auth-input"
             />
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Password</label>
+          <div className="auth-form-group">
+            <label className="auth-label" htmlFor="signup-password">Password</label>
             <input
+              id="signup-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
+              className="auth-input"
             />
-            <span style={{ fontSize: '12px', color: '#666' }}>Minimum 8 characters</span>
+            <span className="auth-hint">Minimum 8 characters</span>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Confirm Password</label>
+          <div className="auth-form-group">
+            <label className="auth-label" htmlFor="signup-confirm">Confirm Password</label>
             <input
+              id="signup-confirm"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
+              className="auth-input"
             />
           </div>
 
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: 12, background: loading ? '#999' : '#667eea', color: 'white', border: 'none', borderRadius: 4, fontSize: 16, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+          <button type="submit" disabled={loading} className="auth-submit">
             {loading ? 'Signing up...' : 'Sign Up'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 20, color: '#666', fontSize: '14px' }}>
+        <div className="auth-link-row">
           Already have an account?{' '}
-          <Link to="/admin/login" style={{ color: '#667eea', textDecoration: 'none', fontWeight: 600 }}>
+          <Link to="/admin/login" className="auth-link">
             Login here
           </Link>
         </div>

@@ -8,6 +8,8 @@ import asyncio
 import os
 from sqlmodel import select
 
+from email_validator import EmailNotValidError, validate_email
+
 from app.config import settings
 from app.database import init_db, async_session_maker
 from app.models.user import Admin
@@ -20,6 +22,11 @@ async def seed_admin() -> None:
 
     if not admin_email or not admin_password:
         raise SystemExit("ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required")
+
+    try:
+        validate_email(admin_email)
+    except EmailNotValidError as e:
+        raise SystemExit(f"Invalid ADMIN_EMAIL: {e}") from e
 
     await init_db()
 

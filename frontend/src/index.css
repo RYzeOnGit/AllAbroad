@@ -1,7 +1,26 @@
-* {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+img,
+video,
+input,
+select,
+textarea {
+  max-width: 100%;
 }
 
 body {

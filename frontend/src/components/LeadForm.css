@@ -1,16 +1,16 @@
 .lead-form-section {
   background-color: #fff;
-  padding: 5rem 2rem;
+  padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 4vw, 2rem);
   border-bottom: 2px solid var(--border-color);
 }
 
 .lead-form-container {
-  max-width: 900px;
+  max-width: min(900px, 100% - 2rem);
   margin: 0 auto;
 }
 
 .form-title {
-  font-size: 2.5rem;
+  font-size: clamp(1.5rem, 4vw + 0.5rem, 2.5rem);
   text-align: center;
   margin-bottom: 1rem;
   color: var(--dark-text);
@@ -18,23 +18,23 @@
 
 .form-subtitle {
   text-align: center;
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 1vw + 0.5rem, 1.1rem);
   color: #666;
-  margin-bottom: 3rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
 }
 
 .lead-form {
   background-color: #f9f9f9;
-  padding: 3rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
   border-radius: 8px;
   border: 2px solid var(--border-color);
 }
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
 }
 
 .form-group {
@@ -46,16 +46,17 @@
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: var(--dark-text);
-  font-size: 0.95rem;
+  font-size: clamp(0.9rem, 1vw + 0.5rem, 0.95rem);
 }
 
 .form-group input {
-  padding: 0.875rem;
+  padding: clamp(0.5rem, 1.5vw, 0.875rem);
   border: 2px solid #ddd;
   border-radius: 4px;
-  font-size: 1rem;
+  font-size: clamp(0.95rem, 1vw + 0.5rem, 1rem);
   font-family: inherit;
   transition: border-color 0.3s;
+  box-sizing: border-box;
 }
 
 .form-group input:focus {
@@ -87,8 +88,8 @@
   background-color: var(--primary-red);
   color: var(--light-text);
   border: none;
-  padding: 1.25rem;
-  font-size: 1.1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  font-size: clamp(1rem, 1.2vw + 0.5rem, 1.1rem);
   font-weight: 600;
   border-radius: 4px;
   cursor: pointer;
@@ -105,23 +106,3 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-@media (max-width: 768px) {
-  .lead-form-section {
-    padding: 3rem 1.5rem;
-  }
-  
-  .lead-form {
-    padding: 2rem 1.5rem;
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .form-title {
-    font-size: 2rem;
-  }
-}
-

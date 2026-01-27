@@ -1,5 +1,6 @@
 import bcrypt
 from datetime import datetime, timedelta
+from email_validator import EmailNotValidError, validate_email
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -128,7 +129,6 @@ async def email_exists_in_any_table(
     
     return False
 
-
 async def send_email_via_resend(
     to: str,
     subject: str,
@@ -136,14 +136,20 @@ async def send_email_via_resend(
     from_email: str = "AllAbroad <onboarding@resend.dev>"
 ) -> bool:
     """Send email via Resend API if configured."""
+    try:
+        validate_email(to)
+    except EmailNotValidError as e:
+        print(f"[ERROR] Invalid recipient email: {e}")
+        return False
+
     if not settings.resend_api_key:
         print(f"[INFO] Resend API key not configured. Email not sent to {to}")
         return True
-    
+
     try:
         from resend import Resend
         client = Resend(api_key=settings.resend_api_key)
-        response = client.emails.send({"from": from_email, "to": to, "subject": subject, "html": html})
+        client.emails.send({"from": from_email, "to": to, "subject": subject, "html": html})
         return True
     except Exception as e:
         print(f"[ERROR] Failed to send email: {str(e)}")
