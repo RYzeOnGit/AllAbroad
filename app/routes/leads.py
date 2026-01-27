@@ -2,14 +2,17 @@
 import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
+from app.lead_options import SUBJECTS
 from app.models.lead import Lead
 from app.models.user import User
 from app.schemas.lead import LeadCreate, LeadResponse
 from app.utils.validation import validate_lead_data
 from app.utils.auth import get_current_user, require_role
+from app.utils.count_cache import get_cached, invalidate
 
 router = APIRouter(tags=["leads"])
 
@@ -66,6 +69,13 @@ async def create_lead(
                 detail=f"Lead with phone number {normalized_phone} already exists"
             )
         
+        # Resolve subject: use subject_other when subject is "Other"
+        resolved_subject = (
+            (lead_data.subject_other or "").strip()
+            if (lead_data.subject and lead_data.subject.strip() == "Other")
+            else (lead_data.subject or "").strip()
+        )
+
         # Create new lead
         new_lead = Lead(
             name=normalized_name,
@@ -73,7 +83,13 @@ async def create_lead(
             country=lead_data.country.strip(),
             target_country=lead_data.target_country.strip(),
             intake=lead_data.intake.strip(),
-            budget=lead_data.budget.strip() if lead_data.budget else None,
+            degree=lead_data.degree.strip(),
+            subject=resolved_subject,
+            budget=None,
+            budget_amount=None,
+            budget_min=lead_data.budget_min,
+            budget_max=lead_data.budget_max,
+            budget_currency=lead_data.budget_currency.strip().upper(),
             source=lead_data.source.strip().lower(),
             status="new"
         )
@@ -81,6 +97,7 @@ async def create_lead(
         session.add(new_lead)
         await session.commit()
         await session.refresh(new_lead)
+        invalidate("new_leads")
         # #region agent log
         _debug_log("app/routes/leads.py:64", "Lead created successfully", {"lead_id": new_lead.id if hasattr(new_lead, 'id') else None}, "C")
         # #endregion
@@ -119,6 +136,9 @@ async def get_leads(
     page: int | None = Query(None, ge=1, description="Page number (1-based)"),
     page_size: int | None = Query(None, ge=1, le=1000, description="Number of items per page"),
     status_filter: str | None = Query(None, description="Optional status filter"),
+    degree: str | None = Query(None, description="Filter by degree"),
+    subject: str | None = Query(None, description="Filter by subject"),
+    subject_other: str | None = Query(None, description="When subject=Other, filter by custom subject (partial, case-insensitive)"),
     session: AsyncSession = Depends(get_session),
     current_user = Depends(require_role("admin", "user")),
 ):
@@ -134,7 +154,7 @@ async def get_leads(
     _debug_log(
         "app/routes/leads.py:110",
         "GET /api/v1/leads called",
-        {"user_id": current_user.id, "page": page, "page_size": page_size, "status": status_filter},
+        {"user_id": current_user.id, "page": page, "page_size": page_size, "status": status_filter, "degree": degree, "subject": subject},
         "C",
     )
     # #endregion
@@ -149,6 +169,24 @@ async def get_leads(
         
         if status_filter:
             base_query = base_query.where(Lead.status == status_filter)
+        if degree:
+            base_query = base_query.where(Lead.degree == degree)
+        if subject:
+            if subject.strip() == "Other":
+                # "Other" leads are stored with the custom subject_other value (e.g. Psychology), not "Other".
+                # Match leads whose subject is not one of the predefined non-Other options.
+                predefined_non_other = [s for s in SUBJECTS if s != "Other"]
+                # #region agent log
+                _debug_log("app/routes/leads.py:subject=Other", "Subject filter Other: matching custom subjects", {"predefined_count": len(predefined_non_other)}, "F")
+                # #endregion
+                base_query = base_query.where(
+                    or_(Lead.subject.is_(None), Lead.subject.notin_(predefined_non_other))
+                )
+                # When subject_other is provided, narrow by partial match on Lead.subject (e.g. "psychology").
+                if subject_other and str(subject_other).strip():
+                    base_query = base_query.where(Lead.subject.ilike(f"%{subject_other.strip()}%"))
+            else:
+                base_query = base_query.where(Lead.subject == subject)
 
         # Total count
         count_result = await session.execute(base_query)
@@ -189,6 +227,36 @@ async def get_leads(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve leads",
         )
+
+
+@router.get(
+    "/v1/leads/new-count",
+    summary="Count of new leads",
+    description="Return the number of leads with status=new for UI badges. PROTECTED - requires authentication.",
+)
+async def get_new_leads_count(
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "user")),
+):
+    """Lightweight endpoint for the Leads Table nav badge. Uses COUNT and a short TTL cache for admins to cut DB load from polling. Cache invalidated on create_lead and status change."""
+    try:
+        is_admin = type(current_user).__name__ == "Admin"
+        if is_admin:
+            async def _fetch():
+                stmt = select(func.count(Lead.id)).where(Lead.status == "new")
+                r = await session.execute(stmt)
+                return int(r.scalar() or 0)
+            count = await get_cached("new_leads", _fetch(), ttl=5)
+        else:
+            stmt = select(func.count(Lead.id)).where(Lead.status == "new").where(Lead.user_id == current_user.id)
+            result = await session.execute(stmt)
+            count = int(result.scalar() or 0)
+        return {"count": count}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve new leads count",
+        ) from e
 
 
 @router.get(
@@ -473,6 +541,7 @@ async def update_lead_status(
             await session.commit()
         
         await session.refresh(lead)
+        invalidate("new_leads")
 
         return LeadResponse.model_validate(lead)
 

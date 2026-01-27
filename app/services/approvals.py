@@ -1,5 +1,6 @@
 """Service helpers for the approval workflow."""
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -44,6 +45,12 @@ async def list_pending_users(session: AsyncSession) -> list[PendingApprovalUser]
         select(PendingApprovalUser).order_by(PendingApprovalUser.created_at.desc())
     )
     return result.scalars().all()
+
+
+async def count_pending_users(session: AsyncSession) -> int:
+    """Lightweight COUNT for pending users. Prefer over len(list_pending_users())."""
+    result = await session.execute(select(func.count(PendingApprovalUser.id)))
+    return int(result.scalar() or 0)
 
 
 async def approve_pending_user(session: AsyncSession, pending_user_id: int) -> User:
@@ -118,3 +125,15 @@ async def update_user_status(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def delete_user(session: AsyncSession, user_id: int) -> None:
+    """Delete an approved user (User table only, not Admin)."""
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    await session.delete(user)
+    await session.commit()

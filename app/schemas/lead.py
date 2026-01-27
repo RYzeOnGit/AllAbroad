@@ -1,8 +1,10 @@
 """Pydantic schemas for lead validation."""
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import re
+
+from app.lead_options import CURRENCIES, DEGREES
 
 
 class LeadCreate(BaseModel):
@@ -13,9 +15,48 @@ class LeadCreate(BaseModel):
     country: str = Field(..., min_length=2, max_length=100, description="Lead's current country")
     target_country: str = Field(..., min_length=2, max_length=100, description="Target study destination")
     intake: str = Field(..., min_length=2, max_length=50, description="Intake period (e.g., Fall 2024)")
-    budget: Optional[str] = Field(None, max_length=50, description="Budget range")
+    degree: str = Field(..., description="Degree (Bachelor's or Master's for now)")
+    subject: str = Field(..., min_length=2, max_length=120, description="Subject of study")
+    subject_other: Optional[str] = Field(None, max_length=100, description="Custom subject when subject is Other")
+    budget_min: Optional[int] = Field(None, ge=0, description="Tuition fees range minimum (integer)")
+    budget_max: Optional[int] = Field(None, ge=0, description="Tuition fees range maximum (integer)")
+    budget_currency: str = Field(..., description="Preferred currency (USD, EUR, INR, GBP)")
     source: str = Field(..., min_length=2, max_length=100, description="Lead source")
-    
+
+    @model_validator(mode="after")
+    def validate_subject_other(self):
+        if self.subject == "Other":
+            if not self.subject_other or not str(self.subject_other).strip():
+                raise ValueError("Please specify your subject when choosing Other")
+        return self
+
+    @model_validator(mode="after")
+    def validate_budget_range(self):
+        if self.budget_min is None and self.budget_max is None:
+            raise ValueError("Please provide at least a minimum or maximum tuition amount")
+        if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
+            raise ValueError("Minimum tuition cannot be greater than maximum")
+        return self
+
+    @field_validator("degree")
+    @classmethod
+    def validate_degree(cls, v: str) -> str:
+        d = v.strip()
+        if d not in DEGREES:
+            raise ValueError(
+                "We currently only support Bachelor's and Master's programs. "
+                "PhD, Diploma, and other degrees are coming soon. Thank you for your patience."
+            )
+        return d
+
+    @field_validator("budget_currency")
+    @classmethod
+    def validate_budget_currency(cls, v: str) -> str:
+        c = v.strip().upper()
+        if c not in CURRENCIES:
+            raise ValueError(f"Currency must be one of: {', '.join(CURRENCIES)}")
+        return c
+
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
@@ -68,11 +109,17 @@ class LeadResponse(BaseModel):
     country: str
     target_country: str
     intake: str
-    budget: Optional[str]
+    degree: Optional[str] = None
+    subject: Optional[str] = None
+    budget: Optional[str] = None
+    budget_amount: Optional[int] = None
+    budget_min: Optional[int] = None
+    budget_max: Optional[int] = None
+    budget_currency: Optional[str] = None
     source: str
     created_at: datetime
     status: str
-    
+
     class Config:
         from_attributes = True
 

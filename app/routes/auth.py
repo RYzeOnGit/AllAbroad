@@ -15,6 +15,7 @@ from app.schemas.auth import (
     SignupRequest,
 )
 from app.services import approvals
+from app.utils.count_cache import invalidate
 from app.utils.auth import (
     create_access_token,
     get_current_user,
@@ -29,6 +30,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def signup(payload: SignupRequest, session: AsyncSession = Depends(get_session)):
     """Register a user into the pending approvals table."""
     await approvals.create_pending_user(session, payload)
+    invalidate("pending_users")
     return {"message": "Signup received. Await admin approval."}
 
 
@@ -51,11 +53,14 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_sessi
     user_res = await session.execute(user_stmt)
     user = user_res.scalar_one_or_none()
 
-    if not user or not verify_password(request.password, user.password_hash):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+
+    if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your account has been deactivated.")
 
     token = create_access_token(
         data={"sub": str(user.id), "email": user.email, "role": "user"},

@@ -141,8 +141,6 @@ async def startup_event():
         # #endregion
         try:
             await seed_admin()
-        except SystemExit:
-            logger.warning("Admin seeding skipped: ADMIN_EMAIL or ADMIN_PASSWORD not set")
         except Exception as seed_err:
             logger.warning("Admin seeding failed: %s", seed_err)
     except Exception as exc:

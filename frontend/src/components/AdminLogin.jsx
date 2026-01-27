@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import './AdminLogin.css'
 
@@ -9,7 +9,14 @@ export default function AdminLogin() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
+
+  useEffect(() => {
+    const e = searchParams.get('error')
+    if (e === 'deactivated') setError('Your account has been deactivated.')
+    else if (e === 'invalid_credentials') setError('Invalid username or password')
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

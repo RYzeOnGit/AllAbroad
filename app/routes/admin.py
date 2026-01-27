@@ -7,12 +7,15 @@ from app.models.user import Admin, User, PendingApprovalUser
 from app.schemas.pending_user import PendingUserResponse, UserResponse, UserStatusUpdate
 from app.services.approvals import (
     list_pending_users,
+    count_pending_users,
     approve_pending_user,
     reject_pending_user,
     list_users,
     update_user_status,
+    delete_user,
 )
 from app.utils.auth import require_role
+from app.utils.count_cache import get_cached, invalidate
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -44,13 +47,13 @@ async def get_pending_users_count(
     """
     Return the count of users pending approval (admin only).
 
-    Lightweight endpoint for UI badges to avoid fetching full lists.
+    Uses COUNT(*) and a short TTL cache to avoid repeated DB load from polling.
+    Cache is invalidated on approve, reject, and signup.
     """
     try:
-        pending_users = await list_pending_users(session)
-        return {"count": len(pending_users)}
+        n = await get_cached("pending_users", count_pending_users(session), ttl=5)
+        return {"count": n}
     except Exception as e:
-        # Keep failure silent but consistent to avoid breaking UI badges
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve pending count: {str(e)}",
@@ -79,6 +82,7 @@ async def approve_user(
         HTTPException 400 if email already in use
     """
     approved_user = await approve_pending_user(session, pending_user_id)
+    invalidate("pending_users")
     return approved_user
 
 
@@ -100,6 +104,7 @@ async def reject_user(
         HTTPException 404 if pending user not found
     """
     await reject_pending_user(session, pending_user_id)
+    invalidate("pending_users")
     return None
 
 
@@ -131,18 +136,18 @@ async def update_user_active_status(
 ):
     """
     Update user active/inactive status (admin only).
-    
-    Args:
-        user_id: ID of user to update
-        status_update: UserStatusUpdate with is_active flag
-        session: Database session
-        current_user: Authenticated admin user
-    
-    Returns:
-        Updated UserResponse
-    
-    Raises:
-        HTTPException 404 if user not found
+    Deactivated users get 401 on next request and cannot sign in until reactivated.
     """
     updated_user = await update_user_status(session, user_id, status_update.is_active)
     return updated_user
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_approved_user(
+    user_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: Admin = Depends(require_role("admin"))
+):
+    """Delete an approved user (admin only). Deleted users cannot sign in."""
+    await delete_user(session, user_id)
+    return None

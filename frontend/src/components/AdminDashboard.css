@@ -57,6 +57,12 @@
   text-align: center;
   background: transparent;
   border-radius: 0;
+  transition: color 0.2s ease, border-color 0.2s ease, padding-left 0.2s ease;
+}
+
+.admin-sidebar .nav-link:not(.active) {
+  border-left: 3px solid transparent;
+  padding-left: calc(0.75rem - 3px);
 }
 
 .admin-sidebar .nav-link:hover {
@@ -127,6 +133,15 @@
   overflow-x: hidden;
 }
 
+@keyframes adminPageFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.admin-main-content {
+  animation: adminPageFadeIn 0.22s ease-out;
+}
+
 .admin-header h1 {
   font-size: clamp(1.25rem, 2vw + 0.5rem, 1.75rem);
   font-weight: 700;
@@ -184,6 +199,7 @@
   margin-top: 2rem;
   text-align: center;
   color: #9ca3af;
+  animation: adminPageFadeIn 0.15s ease-out;
 }
 
 .table-wrapper {
@@ -265,6 +281,37 @@
   justify-content: flex-end;
 }
 
+.admin-search-row.admin-filters-row {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.admin-filters-row .admin-filters-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+  min-width: 0;
+}
+
+.admin-filters-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-filter-select {
+  flex-shrink: 0;
+  padding: clamp(0.5rem, 1.5vw, 0.55rem) clamp(0.65rem, 1.5vw, 0.75rem);
+  border-radius: 0.5rem;
+  border: 1px solid #1f2937;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.9rem;
+  min-width: 100px;
+}
+
 .admin-search-input {
   width: 100%;
   max-width: min(320px, 100%);
@@ -279,6 +326,24 @@
 
 .admin-search-input::placeholder {
   color: #6b7280;
+}
+
+.admin-search-input.admin-filter-subject-other {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 120px;
+  max-width: 180px;
+  border-radius: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .admin-filters-row .admin-filters-search {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+  .admin-filters-group {
+    flex-basis: 100%;
+  }
 }
 
 /* Profile page */

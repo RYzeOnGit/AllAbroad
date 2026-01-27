@@ -1,4 +1,4 @@
-import React, { useEffect, useState, createContext, useContext } from 'react'
+import React, { useCallback, useEffect, useRef, useState, createContext, useContext } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -16,11 +16,28 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { DEGREES, SUBJECTS } from '../constants/leadOptions'
 import './AdminDashboard.css'
 
 const API_BASE = '/api'
+
+function formatBudget(lead) {
+  const c = lead.budget_currency || ''
+  const fmt = (n) => (n != null && n !== '') ? Number(n).toLocaleString() : null
+  const min = fmt(lead.budget_min)
+  const max = fmt(lead.budget_max)
+  if (min != null || max != null) {
+    if (min != null && max != null) return `${min} – ${max} ${c}`.trim()
+    if (min != null) return `From ${min} ${c}`.trim()
+    return `Up to ${max} ${c}`.trim()
+  }
+  if (lead.budget_amount != null && lead.budget_currency) {
+    return `${Number(lead.budget_amount).toLocaleString()} ${lead.budget_currency}`
+  }
+  return lead.budget || '—'
+}
 
 // Simple context removed - each page is now independent
 
@@ -29,21 +46,55 @@ function StatusPill({ status }) {
   return <span className={`status-pill status-${label.toLowerCase()}`}>{label}</span>
 }
 
-function LeadsTable({ leads, page, totalPages, onPageChange, onStatusChange, search, onSearchChange }) {
+function LeadsTable({
+  leads, page, totalPages, onPageChange, onStatusChange, search, onSearchChange,
+  degreeFilter, subjectFilter, subjectOtherFilter, onDegreeFilterChange, onSubjectFilterChange, onSubjectOtherFilterChange
+}) {
   return (
     <div className="panel">
       <div className="panel-header">
         <h3>Leads</h3>
         <span className="panel-subtitle">Paginated list of all leads</span>
       </div>
-      <div className="admin-search-row">
+      <div className="admin-search-row admin-filters-row">
         <input
           type="text"
-          className="admin-search-input"
-          placeholder="Search by name, phone, country, target country, or source..."
+          className="admin-search-input admin-filters-search"
+          placeholder="Search by name, phone, country, target country, degree, subject, or source..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
+        <div className="admin-filters-group">
+          <select
+            className="admin-filter-select"
+            value={degreeFilter || ''}
+            onChange={(e) => onDegreeFilterChange(e.target.value || null)}
+          >
+            <option value="">All degrees</option>
+            {DEGREES.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+          <select
+            className="admin-filter-select"
+            value={subjectFilter || ''}
+            onChange={(e) => onSubjectFilterChange(e.target.value || null)}
+          >
+            <option value="">All subjects</option>
+            {SUBJECTS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          {subjectFilter === 'Other' && (
+            <input
+              type="text"
+              className="admin-search-input admin-filter-subject-other"
+              placeholder="Specify subject"
+              value={subjectOtherFilter || ''}
+              onChange={(e) => onSubjectOtherFilterChange(e.target.value)}
+            />
+          )}
+        </div>
       </div>
       <div className="table-wrapper">
         <table className="leads-table">
@@ -54,6 +105,8 @@ function LeadsTable({ leads, page, totalPages, onPageChange, onStatusChange, sea
               <th>Phone</th>
               <th>From → To</th>
               <th>Intake</th>
+              <th>Degree</th>
+              <th>Subject</th>
               <th>Budget</th>
               <th>Source</th>
               <th>Status</th>
@@ -62,7 +115,7 @@ function LeadsTable({ leads, page, totalPages, onPageChange, onStatusChange, sea
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '1.5rem' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '1.5rem' }}>
                   No leads yet.
                 </td>
               </tr>
@@ -76,7 +129,9 @@ function LeadsTable({ leads, page, totalPages, onPageChange, onStatusChange, sea
                   {lead.country} → {lead.target_country}
                 </td>
                 <td>{lead.intake}</td>
-                <td>{lead.budget || '—'}</td>
+                <td>{lead.degree || '—'}</td>
+                <td>{lead.subject || '—'}</td>
+                <td>{formatBudget(lead)}</td>
                 <td>{lead.source}</td>
                 <td>
                   <select
@@ -148,9 +203,13 @@ function DraggableKanbanCard({ lead, onStatusChange }) {
         <div className="kanban-row">
           <span>{lead.intake}</span>
         </div>
+        <div className="kanban-row">
+          <span>{lead.degree || '—'}</span>
+          <span>{lead.subject || '—'}</span>
+        </div>
         <div className="kanban-row meta">
           <span>{lead.source}</span>
-          <span>{lead.budget || '—'}</span>
+          <span>{formatBudget(lead)}</span>
         </div>
       </div>
       <div className="kanban-card-footer" onClick={(e) => e.stopPropagation()}>
@@ -232,9 +291,13 @@ function KanbanColumn({ title, statusKey, leads, onStatusChange }) {
               <div className="kanban-row">
                 <span>{lead.intake}</span>
               </div>
+              <div className="kanban-row">
+                <span>{lead.degree || '—'}</span>
+                <span>{lead.subject || '—'}</span>
+              </div>
               <div className="kanban-row meta">
                 <span>{lead.source}</span>
-                <span>{lead.budget || '—'}</span>
+                <span>{formatBudget(lead)}</span>
               </div>
             </div>
             <div className="kanban-card-footer">
@@ -424,6 +487,10 @@ function KanbanView({ allLeads, onStatusChange }) {
                 </div>
                 <div className="kanban-row">
                   <span>{activeLead.intake}</span>
+                </div>
+                <div className="kanban-row">
+                  <span>{activeLead.degree || '—'}</span>
+                  <span>{activeLead.subject || '—'}</span>
                 </div>
               </div>
             </div>
@@ -675,14 +742,26 @@ export function AdminLeadsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [degreeFilter, setDegreeFilter] = useState('')
+  const [subjectFilter, setSubjectFilter] = useState('')
+  const [subjectOtherFilter, setSubjectOtherFilter] = useState('')
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
 
-  const fetchTable = async (pageArg = page) => {
+  const fetchTable = async (pageArg = page, overrides = {}) => {
+    const deg = overrides.degree !== undefined ? overrides.degree : degreeFilter
+    const subj = overrides.subject !== undefined ? overrides.subject : subjectFilter
+    const subjOther = overrides.subject_other !== undefined ? overrides.subject_other : subjectOtherFilter
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${API_BASE}/v1/leads?page=${pageArg}&page_size=${pageSize}`, {
+      const params = new URLSearchParams({ page: String(pageArg), page_size: String(pageSize) })
+      if (deg) params.set('degree', deg)
+      if (subj) params.set('subject', subj)
+      if (subj === 'Other' && subjOther && String(subjOther).trim()) {
+        params.set('subject_other', String(subjOther).trim())
+      }
+      const res = await fetch(`${API_BASE}/v1/leads?${params}`, {
         headers: { ...authHeaders },
       })
       if (res.status === 401 || res.status === 403) {
@@ -720,6 +799,25 @@ export function AdminLeadsPage() {
     fetchTable(newPage)
   }
 
+  const handleDegreeFilter = (v) => {
+    setDegreeFilter(v || '')
+    setPage(1)
+    fetchTable(1, { degree: v || '' })
+  }
+
+  const handleSubjectFilter = (v) => {
+    setSubjectFilter(v || '')
+    setSubjectOtherFilter('')
+    setPage(1)
+    fetchTable(1, { subject: v || '' })
+  }
+
+  const handleSubjectOtherFilterChange = (v) => {
+    setSubjectOtherFilter(v)
+    setPage(1)
+    fetchTable(1, { subject: subjectFilter, subject_other: v })
+  }
+
   const normalizedSearch = search.trim().toLowerCase()
   const filteredLeads = (tableData.items || []).filter((lead) => {
     if (!normalizedSearch) return true
@@ -728,6 +826,8 @@ export function AdminLeadsPage() {
       lead.phone,
       lead.country,
       lead.target_country,
+      lead.degree,
+      lead.subject,
       lead.source,
     ]
       .filter(Boolean)
@@ -753,6 +853,12 @@ export function AdminLeadsPage() {
           onStatusChange={handleStatusChange}
           search={search}
           onSearchChange={setSearch}
+          degreeFilter={degreeFilter || null}
+          subjectFilter={subjectFilter || null}
+          subjectOtherFilter={subjectOtherFilter}
+          onDegreeFilterChange={handleDegreeFilter}
+          onSubjectFilterChange={handleSubjectFilter}
+          onSubjectOtherFilterChange={handleSubjectOtherFilterChange}
         />
       )}
     </div>
@@ -813,6 +919,8 @@ export function AdminKanbanPage() {
       lead.phone,
       lead.country,
       lead.target_country,
+      lead.degree,
+      lead.subject,
       lead.source,
     ]
       .filter(Boolean)
@@ -1144,6 +1252,7 @@ export function AdminProfilePage() {
 
 export function AdminApprovalsPage() {
   const { token, role } = useAuth()
+  const { decrementCount } = useContext(PendingCountContext)
   const [pendingUsers, setPendingUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -1182,6 +1291,7 @@ export function AdminApprovalsPage() {
         throw new Error(data.detail || 'Action failed')
       }
       await fetchPending()
+      decrementCount()
     } catch (err) {
       setError(err.message)
     }
@@ -1260,19 +1370,326 @@ export function AdminApprovalsPage() {
   )
 }
 
+export function AdminUsersPage() {
+  const { token, role } = useAuth()
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  const fetchUsers = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`, { headers: { ...authHeaders } })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to load users')
+      }
+      const data = await res.json()
+      setUsers(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStatusChange = async (u) => {
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${u.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ is_active: !u.is_active }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Action failed')
+      }
+      await fetchUsers()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleDelete = async (u) => {
+    if (!window.confirm(`Delete ${u.full_name} (${u.email})? They will not be able to sign in.`)) return
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${u.id}`, { method: 'DELETE', headers: { ...authHeaders } })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Delete failed')
+      }
+      await fetchUsers()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (role === 'admin') fetchUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role])
+
+  if (role !== 'admin') return <Navigate to="/admin/dashboard" replace />
+
+  return (
+    <div>
+      <header className="admin-header">
+        <h1>Approved Users</h1>
+        <p>Deactivate or delete approved users. Deactivated users cannot sign in until reactivated; deleted users are removed permanently.</p>
+      </header>
+      <div className="panel">
+        <div className="panel-header">
+          <h3>Users</h3>
+          <span className="panel-subtitle">Manage approved staff accounts</span>
+        </div>
+        {error && <div className="admin-alert">{error}</div>}
+        {loading && <div className="admin-loading">Loading users...</div>}
+        {!loading && users.length === 0 && (
+          <div className="admin-loading">No approved users.</div>
+        )}
+        {!loading && users.length > 0 && (
+          <div className="table-wrapper">
+            <table className="leads-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.id}</td>
+                    <td>{u.full_name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={u.is_active ? 'status-pill status-new' : 'status-pill status-lost'}>
+                        {u.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>{new Date(u.created_at).toLocaleString()}</td>
+                    <td style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        className="nav-link"
+                        style={{ padding: '0.35rem 0.65rem' }}
+                        onClick={() => handleStatusChange(u)}
+                      >
+                        {u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="logout-btn"
+                        style={{ padding: '0.35rem 0.65rem', marginTop: 0 }}
+                        onClick={() => handleDelete(u)}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --- Pending (approve users) count: shared so ApprovalsPage can decrement on approve/reject
+const PendingCountContext = createContext({ count: 0, decrementCount: () => {} })
+
+function PendingCountProvider({ children }) {
+  const { token, role } = useAuth()
+  const [count, setCount] = useState(0)
+  const [unchangedPolls, setUnchangedPolls] = useState(0)
+  const mountedRef = useRef(true)
+  const prevCountRef = useRef(undefined)
+  const intervalMs = unchangedPolls >= 2 ? 30000 : 15000
+
+  const fetchCount = useCallback(async () => {
+    if (role !== 'admin') {
+      setCount(0)
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/pending-users/count`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const n = Number(data?.count || 0)
+      if (mountedRef.current) {
+        setCount(n)
+        if (prevCountRef.current !== undefined && n === prevCountRef.current) {
+          setUnchangedPolls((p) => p + 1)
+        } else {
+          setUnchangedPolls(0)
+        }
+        prevCountRef.current = n
+      }
+    } catch (_) {
+      // silent
+    }
+  }, [token, role])
+
+  const decrementCount = useCallback(() => {
+    setCount((c) => Math.max(0, c - 1))
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    fetchCount()
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchCount()
+    }, intervalMs)
+    return () => {
+      mountedRef.current = false
+      clearInterval(id)
+    }
+  }, [fetchCount, intervalMs])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        setUnchangedPolls(0)
+        fetchCount()
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [fetchCount])
+
+  return (
+    <PendingCountContext.Provider value={{ count, decrementCount }}>
+      {children}
+    </PendingCountContext.Provider>
+  )
+}
+
+// --- New leads count: track lastSeen when on Leads Table so we don't show badge when nothing new
+const NewLeadsCountContext = createContext({
+  newLeadsCount: 0,
+  lastSeenNewCount: 0,
+})
+
+function NewLeadsCountProvider({ children }) {
+  const { token } = useAuth()
+  const location = useLocation()
+  const locationRef = useRef(location.pathname)
+  const [newLeadsCount, setNewLeadsCount] = useState(0)
+  const [lastSeenNewCount, setLastSeenNewCount] = useState(0)
+  const [unchangedPolls, setUnchangedPolls] = useState(0)
+  const prevCountRef = useRef(undefined)
+  const mountedRef = useRef(true)
+  const intervalMs = unchangedPolls >= 2 ? 30000 : 15000
+
+  useEffect(() => {
+    locationRef.current = location.pathname
+  }, [location.pathname])
+
+  const fetchCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/v1/leads/new-count`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const n = Number(data?.count || 0)
+      if (mountedRef.current) {
+        setNewLeadsCount(n)
+        const p = locationRef.current
+        if (p === '/admin/dashboard' || p === '/admin/dashboard/') {
+          setLastSeenNewCount(n)
+        }
+        if (prevCountRef.current !== undefined && n === prevCountRef.current) {
+          setUnchangedPolls((x) => x + 1)
+        } else {
+          setUnchangedPolls(0)
+        }
+        prevCountRef.current = n
+      }
+    } catch (_) {
+      // silent
+    }
+  }, [token])
+
+  useEffect(() => {
+    mountedRef.current = true
+    fetchCount()
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchCount()
+    }, intervalMs)
+    return () => {
+      mountedRef.current = false
+      clearInterval(id)
+    }
+  }, [fetchCount, intervalMs])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        setUnchangedPolls(0)
+        fetchCount()
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [fetchCount])
+
+  return (
+    <NewLeadsCountContext.Provider value={{ newLeadsCount, lastSeenNewCount }}>
+      {children}
+    </NewLeadsCountContext.Provider>
+  )
+}
+
 // Layout + nav only
 export default function AdminDashboard() {
   const { token, role, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleLogout = () => {
     logout()
     navigate('/admin/login')
   }
 
+  // Session check: when user is deactivated or deleted, /auth/me returns 401. Redirect to login with the right error.
+  useEffect(() => {
+    if (!token) return
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+        if (res.status === 401 || res.status === 403) {
+          const d = await res.json().catch(() => ({}))
+          const msg = (d?.detail || '').toLowerCase()
+          let err = 'session_expired'
+          if (msg.includes('deactivated')) err = 'deactivated'
+          else if (msg.includes('invalid username or password')) err = 'invalid_credentials'
+          logout()
+          navigate(`/admin/login?error=${err}`)
+        }
+      } catch (_) {}
+    }
+    const id = setInterval(check, 45000)
+    check()
+    return () => clearInterval(id)
+  }, [token, logout, navigate])
+
   return (
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
+    <PendingCountProvider>
+      <NewLeadsCountProvider>
+        <div className="admin-shell">
+          <aside className="admin-sidebar">
         <div className="sidebar-logo">AllAbroad Admin</div>
         <nav className="sidebar-nav">
           <NavLink
@@ -1280,7 +1697,7 @@ export default function AdminDashboard() {
             end
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
-            Leads Table
+            <span className="nav-text-with-badge">Leads Table <NewLeadsBadge /></span>
           </NavLink>
           <NavLink
             to="/admin/dashboard/kanban"
@@ -1302,6 +1719,14 @@ export default function AdminDashboard() {
               <span className="nav-text-with-badge">Approve Users <PendingBadge /></span>
             </NavLink>
           )}
+          {role === 'admin' && (
+            <NavLink
+              to="/admin/dashboard/users"
+              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+            >
+              Approved Users
+            </NavLink>
+          )}
         </nav>
         <div className="sidebar-bottom">
           <NavLink
@@ -1316,52 +1741,33 @@ export default function AdminDashboard() {
         </div>
       </aside>
       <main className="admin-main">
-        <Outlet />
+        <div key={location.pathname} className="admin-main-content">
+          <Outlet />
+        </div>
       </main>
-    </div>
+        </div>
+      </NewLeadsCountProvider>
+    </PendingCountProvider>
   )
 }
 
-// Memoized badge component with lightweight polling and isolated state
+// Badge: count of leads with status=new (for Leads Table nav). Only show when there are *new* leads since the user last viewed the Leads Table.
+const NewLeadsBadge = React.memo(function NewLeadsBadge() {
+  const location = useLocation()
+  const { newLeadsCount, lastSeenNewCount } = useContext(NewLeadsCountContext)
+
+  // Hide when viewing Leads Table — user has seen the list
+  if (location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/') return null
+  // Don't show when nothing new since last view (avoids showing stale count from polling when no change)
+  if (newLeadsCount <= lastSeenNewCount || newLeadsCount <= 0) return null
+  const display = newLeadsCount > 99 ? '99+' : String(newLeadsCount)
+  return <span className="pending-badge" aria-label={`New leads: ${display}`}>{display}</span>
+})
+
+// Pending (approve users) badge: uses context so count decrements immediately on approve/reject
 const PendingBadge = React.memo(function PendingBadge() {
-  const { token, role } = useAuth()
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    if (role !== 'admin') return
-    let mounted = true
-    let controller = null
-
-    const fetchCount = async () => {
-      try {
-        controller = new AbortController()
-        const res = await fetch(`${API_BASE}/admin/pending-users/count`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          signal: controller.signal,
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (mounted) setCount(Number(data?.count || 0))
-      } catch (_) {
-        // silent failure to avoid UI noise
-      }
-    }
-
-    fetchCount()
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        fetchCount()
-      }
-    }, 15000) // 15s cadence for spontaneous updates
-
-    return () => {
-      mounted = false
-      if (controller) controller.abort()
-      clearInterval(interval)
-    }
-  }, [token, role])
-
+  const { count } = useContext(PendingCountContext)
   if (!count || count <= 0) return null
-  const display = count > 10 ? '10+' : String(count)
+  const display = count > 9 ? '9+' : String(count)
   return <span className="pending-badge" aria-label={`Pending approvals: ${display}`}>{display}</span>
 })

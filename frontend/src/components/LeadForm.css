@@ -64,6 +64,52 @@
   border-color: var(--primary-red);
 }
 
+.form-group select {
+  padding: clamp(0.5rem, 1.5vw, 0.875rem);
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  font-size: clamp(0.95rem, 1vw + 0.5rem, 1rem);
+  font-family: inherit;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-red);
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: #666;
+  margin: -0.25rem 0 0.5rem;
+}
+
+.form-inline {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.form-inline input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.form-inline select {
+  min-width: 100px;
+}
+
+.form-range-sep {
+  align-self: center;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.form-group-full {
+  grid-column: 1 / -1;
+}
+
 .form-message {
   padding: 1rem;
   border-radius: 4px;
