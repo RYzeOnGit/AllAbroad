@@ -19,6 +19,12 @@ class Lead(SQLModel, table=True):
     budget: Optional[str] = Field(default=None, max_length=50, index=False)
     source: str = Field(max_length=100, index=False)  # e.g., "website", "facebook", "referral"
     
+    # Row-level security: each lead belongs to a user
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    
+    # Optimistic locking: prevent race conditions on concurrent updates
+    version: int = Field(default=0, index=False)
+    
     # Metadata
     created_at: datetime = Field(
         default_factory=datetime.utcnow,

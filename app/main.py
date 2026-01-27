@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import init_db
 from app.routes import api_router
 from app.models import Lead, User  # noqa: F401 - imported for metadata registration
+from app.seed_admin import seed_admin
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,12 @@ async def startup_event():
         # #region agent log
         _debug_log("app/main.py:40", "Database initialization succeeded", {}, "D")
         # #endregion
+        try:
+            await seed_admin()
+        except SystemExit:
+            logger.warning("Admin seeding skipped: ADMIN_EMAIL or ADMIN_PASSWORD not set")
+        except Exception as seed_err:
+            logger.warning("Admin seeding failed: %s", seed_err)
     except Exception as exc:
         # Log the error but allow the app to start so non-DB routes still work
         logger.error("Database initialization failed: %s", exc)

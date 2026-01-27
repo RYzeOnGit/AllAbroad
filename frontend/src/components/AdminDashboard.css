@@ -51,6 +51,28 @@
   color: #ffffff;
 }
 
+/* Inline badge next to nav text */
+.nav-text-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .logout-btn {
   margin-top: auto;
   padding: 0.65rem 0.75rem;

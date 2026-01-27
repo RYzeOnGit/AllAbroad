@@ -10,7 +10,7 @@ from sqlmodel import select
 
 from app.config import settings
 from app.database import init_db, async_session_maker
-from app.models.user import User
+from app.models.user import Admin
 from app.utils.auth import hash_password
 
 
@@ -24,20 +24,20 @@ async def seed_admin() -> None:
     await init_db()
 
     async with async_session_maker() as session:
-        result = await session.execute(select(User).where(User.email == admin_email.lower()))
+        result = await session.execute(select(Admin).where(Admin.email == admin_email.lower()))
         existing = result.scalar_one_or_none()
         if existing:
-            print(f"Admin user already exists: {existing.email}")
+            print(f"Admin already exists: {existing.email}")
             return
 
-        user = User(
+        admin = Admin(
             email=admin_email.lower().strip(),
+            full_name=os.getenv("ADMIN_FULL_NAME", "Administrator"),
             password_hash=hash_password(admin_password),
-            role="admin",
         )
-        session.add(user)
+        session.add(admin)
         await session.commit()
-        print(f"Admin user created: {user.email}")
+        print(f"Admin created: {admin.email}")
 
 
 if __name__ == "__main__":

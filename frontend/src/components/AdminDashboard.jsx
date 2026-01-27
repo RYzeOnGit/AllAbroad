@@ -16,22 +16,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import './AdminDashboard.css'
 
-const API_BASE = 'http://localhost:8000/api'
+const API_BASE = '/api'
 
-// Simple context so nested pages (table / kanban / stats) can share data and actions
-const AdminDataContext = createContext(null)
-
-export function useAdminData() {
-  const ctx = useContext(AdminDataContext)
-  if (!ctx) {
-    throw new Error('useAdminData must be used within AdminDashboard')
-  }
-  return ctx
-}
+// Simple context removed - each page is now independent
 
 function StatusPill({ status }) {
   const label = status || 'unknown'
@@ -677,90 +668,13 @@ function StatsView({ stats }) {
 
 // Individual page components using shared admin data
 export function AdminLeadsPage() {
-  const { tableData, page, handlePageChange, handleStatusChange } = useAdminData()
-  const [search, setSearch] = useState('')
-
-  const normalizedSearch = search.trim().toLowerCase()
-  const filteredLeads = (tableData.items || []).filter((lead) => {
-    if (!normalizedSearch) return true
-    const haystack = [
-      lead.name,
-      lead.phone,
-      lead.country,
-      lead.target_country,
-      lead.source,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(normalizedSearch)
-  })
-
-  return (
-    <LeadsTable
-      leads={filteredLeads}
-      page={tableData.page || page}
-      totalPages={tableData.total_pages || 1}
-      onPageChange={handlePageChange}
-      onStatusChange={handleStatusChange}
-      search={search}
-      onSearchChange={setSearch}
-    />
-  )
-}
-
-export function AdminKanbanPage() {
-  const { allLeads, tableData, handleStatusChange } = useAdminData()
-  const [search, setSearch] = useState('')
-
-  const baseLeads = allLeads.length ? allLeads : tableData.items || []
-  const normalizedSearch = search.trim().toLowerCase()
-  const filteredLeads = baseLeads.filter((lead) => {
-    if (!normalizedSearch) return true
-    const haystack = [
-      lead.name,
-      lead.phone,
-      lead.country,
-      lead.target_country,
-      lead.source,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(normalizedSearch)
-  })
-
-  return (
-    <div>
-      <div className="admin-search-row">
-        <input
-          type="text"
-          className="admin-search-input"
-          placeholder="Search leads in board..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-      <KanbanView allLeads={filteredLeads} onStatusChange={handleStatusChange} />
-    </div>
-  )
-}
-
-export function AdminStatsPage() {
-  const { stats } = useAdminData()
-  return <StatsView stats={stats} />
-}
-
-// Layout + data provider
-export default function AdminDashboard() {
-  const { token, logout } = useAuth()
+  const { token } = useAuth()
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
   const [tableData, setTableData] = useState({ items: [], total_pages: 1 })
-  const [allLeads, setAllLeads] = useState([])
-  const [stats, setStats] = useState({ total: 0, by_status: {}, recent: [] })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
 
@@ -784,18 +698,93 @@ export default function AdminDashboard() {
     }
   }
 
-  const fetchAllAndStats = async () => {
+  const handleStatusChange = async (leadId, newStatus) => {
     try {
-      const [allRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/v1/leads?page=1&page_size=500`, { headers: { ...authHeaders } }),
-        fetch(`${API_BASE}/v1/leads/stats`, { headers: { ...authHeaders } }),
-      ])
-      const allData = await allRes.json()
-      const statsData = await statsRes.json()
-      setAllLeads(allData.items || [])
-      setStats(statsData)
+      await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders },
+      })
+      fetchTable(page)
     } catch {
-      // soft-fail; errors shown via main table
+      setError('Failed to update lead status.')
+    }
+  }
+
+  useEffect(() => {
+    fetchTable(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage)
+    fetchTable(newPage)
+  }
+
+  const normalizedSearch = search.trim().toLowerCase()
+  const filteredLeads = (tableData.items || []).filter((lead) => {
+    if (!normalizedSearch) return true
+    const haystack = [
+      lead.name,
+      lead.phone,
+      lead.country,
+      lead.target_country,
+      lead.source,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(normalizedSearch)
+  })
+
+  return (
+    <div>
+      <header className="admin-header">
+        <h1>Leads</h1>
+        <p>View and manage all study abroad leads.</p>
+      </header>
+      {error && <div className="admin-alert">{error}</div>}
+      {loading && <div className="admin-loading">Loading leads...</div>}
+      {!loading && (
+        <LeadsTable
+          leads={filteredLeads}
+          page={tableData.page || page}
+          totalPages={tableData.total_pages || 1}
+          onPageChange={handlePageChange}
+          onStatusChange={handleStatusChange}
+          search={search}
+          onSearchChange={setSearch}
+        />
+      )}
+    </div>
+  )
+}
+
+export function AdminKanbanPage() {
+  const { token } = useAuth()
+  const [allLeads, setAllLeads] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  const fetchLeads = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/v1/leads?page=1&page_size=500`, {
+        headers: { ...authHeaders },
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Failed to load leads`)
+      }
+      const data = await res.json()
+      setAllLeads(Array.isArray(data.items) ? data.items : [])
+    } catch (err) {
+      console.error('Error fetching leads:', err)
+      setError(err.message || 'Failed to load leads')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -805,33 +794,229 @@ export default function AdminDashboard() {
         method: 'PATCH',
         headers: { ...authHeaders },
       })
-      // Refresh data after status change
-      fetchTable(page)
-      fetchAllAndStats()
+      fetchLeads()
     } catch {
       setError('Failed to update lead status.')
     }
   }
 
   useEffect(() => {
-    fetchTable(1)
-    fetchAllAndStats()
+    fetchLeads()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handlePageChange = (newPage) => {
-    setPage(newPage)
-    fetchTable(newPage)
+  const normalizedSearch = search.trim().toLowerCase()
+  const filteredLeads = allLeads.filter((lead) => {
+    if (!normalizedSearch) return true
+    const haystack = [
+      lead.name,
+      lead.phone,
+      lead.country,
+      lead.target_country,
+      lead.source,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(normalizedSearch)
+  })
+
+  return (
+    <div>
+      <header className="admin-header">
+        <h1>Kanban Board</h1>
+        <p>Drag and drop leads to change status.</p>
+      </header>
+      {error && <div className="admin-alert">{error}</div>}
+      {loading && <div className="admin-loading">Loading leads...</div>}
+      {!loading && (
+        <>
+          <div className="admin-search-row">
+            <input
+              type="text"
+              className="admin-search-input"
+              placeholder="Search leads in board..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <KanbanView allLeads={filteredLeads} onStatusChange={handleStatusChange} />
+        </>
+      )}
+    </div>
+  )
+}
+
+export function AdminStatsPage() {
+  const { token } = useAuth()
+  const [stats, setStats] = useState({ total: 0, by_status: {}, recent: [] })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  const fetchStats = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/v1/leads/stats`, { headers: { ...authHeaders } })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: Failed to load stats`)
+      }
+      const data = await res.json()
+      setStats(data || { total: 0, by_status: {}, recent: [] })
+    } catch (err) {
+      console.error('Error fetching stats:', err)
+      setError(err.message || 'Failed to load stats')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const contextValue = {
-    tableData,
-    allLeads,
-    stats,
-    page,
-    pageSize,
-    handlePageChange,
-    handleStatusChange,
+  useEffect(() => {
+    fetchStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div>
+      <header className="admin-header">
+        <h1>Statistics</h1>
+        <p>Key performance indicators and analytics.</p>
+      </header>
+      {error && <div className="admin-alert">{error}</div>}
+      {loading && <div className="admin-loading">Loading stats...</div>}
+      {!loading && <StatsView stats={stats} />}
+    </div>
+  )
+}
+
+export function AdminApprovalsPage() {
+  const { token, role } = useAuth()
+  const [pendingUsers, setPendingUsers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  const fetchPending = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/admin/pending-users`, { headers: { ...authHeaders } })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to load pending users')
+      }
+      const data = await res.json()
+      setPendingUsers(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDecision = async (id, action) => {
+    setError('')
+    try {
+      const url =
+        action === 'approve'
+          ? `${API_BASE}/admin/pending-users/${id}/approve`
+          : `${API_BASE}/admin/pending-users/${id}/reject`
+      const method = action === 'approve' ? 'POST' : 'DELETE'
+      const res = await fetch(url, { method, headers: { ...authHeaders } })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Action failed')
+      }
+      await fetchPending()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (role === 'admin') {
+      fetchPending()
+      // lightweight polling so the list stays fresh without reloads
+      const interval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          fetchPending()
+        }
+      }, 15000) // 15s cadence
+      return () => clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role])
+
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h3>Approve Users</h3>
+        <span className="panel-subtitle">Review pending signups and approve or reject.</span>
+      </div>
+
+      {error && <div className="admin-alert">{error}</div>}
+      {loading && <div className="admin-loading">Loading pending users...</div>}
+
+      {!loading && pendingUsers.length === 0 && (
+        <div className="admin-loading">No pending users right now.</div>
+      )}
+
+      {!loading && pendingUsers.length > 0 && (
+        <div className="table-wrapper">
+          <table className="leads-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Requested</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingUsers.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.id}</td>
+                  <td>{u.full_name}</td>
+                  <td>{u.email}</td>
+                  <td>{new Date(u.created_at).toLocaleString()}</td>
+                  <td style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className="nav-link"
+                      style={{ padding: '0.35rem 0.65rem' }}
+                      onClick={() => handleDecision(u.id, 'approve')}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="logout-btn"
+                      style={{ padding: '0.35rem 0.65rem', marginTop: 0 }}
+                      onClick={() => handleDecision(u.id, 'reject')}
+                    >
+                      Reject
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Layout + nav only
+export default function AdminDashboard() {
+  const { token, role, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/admin/login')
   }
 
   return (
@@ -858,27 +1043,66 @@ export default function AdminDashboard() {
           >
             Statistics
           </NavLink>
+          {role === 'admin' && (
+            <NavLink
+              to="/admin/dashboard/approvals"
+              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+            >
+              <span className="nav-text-with-badge">Approve Users <PendingBadge /></span>
+            </NavLink>
+          )}
         </nav>
-        <button className="logout-btn" onClick={logout}>
+        <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
       </aside>
       <main className="admin-main">
-        <header className="admin-header">
-          <h1>Leads Dashboard</h1>
-          <p>Track, prioritize, and manage your study abroad leads.</p>
-        </header>
-
-        {error && <div className="admin-alert">{error}</div>}
-
-        {loading && <div className="admin-loading">Loading leads...</div>}
-
-        {!loading && (
-          <AdminDataContext.Provider value={contextValue}>
-            <Outlet />
-          </AdminDataContext.Provider>
-        )}
+        <Outlet />
       </main>
     </div>
   )
 }
+
+// Memoized badge component with lightweight polling and isolated state
+const PendingBadge = React.memo(function PendingBadge() {
+  const { token, role } = useAuth()
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (role !== 'admin') return
+    let mounted = true
+    let controller = null
+
+    const fetchCount = async () => {
+      try {
+        controller = new AbortController()
+        const res = await fetch(`${API_BASE}/admin/pending-users/count`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (mounted) setCount(Number(data?.count || 0))
+      } catch (_) {
+        // silent failure to avoid UI noise
+      }
+    }
+
+    fetchCount()
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchCount()
+      }
+    }, 15000) // 15s cadence for spontaneous updates
+
+    return () => {
+      mounted = false
+      if (controller) controller.abort()
+      clearInterval(interval)
+    }
+  }, [token, role])
+
+  if (!count || count <= 0) return null
+  const display = count > 10 ? '10+' : String(count)
+  return <span className="pending-badge" aria-label={`Pending approvals: ${display}`}>{display}</span>
+})

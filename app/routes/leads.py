@@ -113,31 +113,40 @@ async def create_lead(
 @router.get(
     "/v1/leads",
     summary="Get paginated leads",
-    description="Retrieve leads with pagination and optional status filter. PROTECTED - requires staff authentication (admin, manager, or counselor)."
+    description="Retrieve leads with pagination and optional status filter. PROTECTED - requires staff authentication."
 )
 async def get_leads(
-    page: int = Query(1, ge=1, description="Page number (1-based)"),
-    page_size: int = Query(20, ge=1, le=100, description="Number of items per page"),
+    page: int | None = Query(None, ge=1, description="Page number (1-based)"),
+    page_size: int | None = Query(None, ge=1, le=1000, description="Number of items per page"),
     status_filter: str | None = Query(None, description="Optional status filter"),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+    current_user = Depends(require_role("admin", "user")),
 ):
     """
-    Get leads with pagination (protected - admin/staff only).
+    Get leads with pagination (protected - requires authentication).
 
-    Returns a JSON payload with items and pagination metadata.
+    Admins see all leads; users see only their leads.
     """
+    # Set defaults if not provided
+    page = page or 1
+    page_size = page_size or 20
     # #region agent log
     _debug_log(
         "app/routes/leads.py:110",
         "GET /api/v1/leads called",
-        {"user_id": current_user.id, "role": current_user.role, "page": page, "page_size": page_size, "status": status_filter},
+        {"user_id": current_user.id, "page": page, "page_size": page_size, "status": status_filter},
         "C",
     )
     # #endregion
 
     try:
+        # Admins see all leads; users see only their leads
+        is_admin = type(current_user).__name__ == "Admin"
         base_query = select(Lead)
+        
+        if not is_admin:
+            base_query = base_query.where(Lead.user_id == current_user.id)
+        
         if status_filter:
             base_query = base_query.where(Lead.status == status_filter)
 
@@ -183,105 +192,13 @@ async def get_leads(
 
 
 @router.get(
-    "/v1/leads/{lead_id}",
-    response_model=LeadResponse,
-    summary="Get single lead",
-    description="Retrieve a specific lead by ID. PROTECTED - requires staff authentication."
-)
-async def get_lead(
-    lead_id: int,
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor"))
-) -> LeadResponse:
-    """
-    Get a single lead by ID (protected - admin/staff only).
-    
-    Requires valid JWT token with admin, manager, or counselor role.
-    """
-    # #region agent log
-    _debug_log("app/routes/leads.py:145", "GET /api/v1/leads/{lead_id} called", {"lead_id": lead_id, "user_id": current_user.id}, "C")
-    # #endregion
-    
-    try:
-        statement = select(Lead).where(Lead.id == lead_id)
-        result = await session.execute(statement)
-        lead = result.scalar_one_or_none()
-        
-        if not lead:
-            # #region agent log
-            _debug_log("app/routes/leads.py:152", "Lead not found", {"lead_id": lead_id}, "C")
-            # #endregion
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Lead with ID {lead_id} not found"
-            )
-        
-        # #region agent log
-        _debug_log("app/routes/leads.py:158", "Lead retrieved successfully", {"lead_id": lead.id}, "C")
-        # #endregion
-        
-        return LeadResponse.model_validate(lead)
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        # #region agent log
-        _debug_log("app/routes/leads.py:164", "Error retrieving lead", {"lead_id": lead_id, "error_type": type(e).__name__, "error": str(e)}, "C")
-        # #endregion
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve lead"
-        )
-
-
-@router.patch(
-    "/v1/leads/{lead_id}/status",
-    summary="Update lead status",
-    description="Update the status of a lead (e.g., new, contacted, qualified, won, lost). PROTECTED - requires staff authentication."
-)
-async def update_lead_status(
-    lead_id: int,
-    new_status: str = Query(..., min_length=2, max_length=50),
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
-) -> LeadResponse:
-    """
-    Update the status of a single lead.
-    """
-    try:
-        statement = select(Lead).where(Lead.id == lead_id)
-        result = await session.execute(statement)
-        lead = result.scalar_one_or_none()
-
-        if not lead:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Lead with ID {lead_id} not found",
-            )
-
-        lead.status = new_status.strip().lower()
-        await session.commit()
-        await session.refresh(lead)
-
-        return LeadResponse.model_validate(lead)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update lead status",
-        )
-
-
-@router.get(
     "/v1/leads/stats",
     summary="Get lead statistics",
-    description="Comprehensive statistics with conversion rates, trends, source performance, and actionable insights. PROTECTED - requires staff authentication."
+    description="Comprehensive statistics with conversion rates, trends, source performance. PROTECTED - requires authentication."
 )
 async def get_lead_stats(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+    current_user = Depends(require_role("admin", "user")),
 ):
     """
     Return comprehensive statistics for leads with conversion metrics, trends, and performance data.
@@ -448,4 +365,123 @@ async def get_lead_stats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve lead statistics: {str(e)}",
         )
+
+
+@router.get(
+    "/v1/leads/{lead_id}",
+    response_model=LeadResponse,
+    summary="Get single lead",
+    description="Retrieve a specific lead by ID. PROTECTED - requires staff authentication."
+)
+async def get_lead(
+    lead_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(require_role("admin", "user"))
+) -> LeadResponse:
+    """
+    Get a single lead by ID (protected).
+    
+    Admins can access any lead; users can only access their own.
+    """
+    # #region agent log
+    _debug_log("app/routes/leads.py:145", "GET /api/v1/leads/{lead_id} called", {"lead_id": lead_id, "user_id": current_user.id}, "C")
+    # #endregion
+    
+    try:
+        is_admin = type(current_user).__name__ == "Admin"
+        statement = select(Lead).where(Lead.id == lead_id)
+        
+        if not is_admin:
+            statement = statement.where(Lead.user_id == current_user.id)
+        
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+        
+        if not lead:
+            # #region agent log
+            _debug_log("app/routes/leads.py:152", "Lead not found", {"lead_id": lead_id}, "C")
+            # #endregion
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found"
+            )
+        
+        # #region agent log
+        _debug_log("app/routes/leads.py:158", "Lead retrieved successfully", {"lead_id": lead.id}, "C")
+        # #endregion
+        
+        return LeadResponse.model_validate(lead)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        # #region agent log
+        _debug_log("app/routes/leads.py:164", "Error retrieving lead", {"lead_id": lead_id, "error_type": type(e).__name__, "error": str(e)}, "C")
+        # #endregion
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve lead"
+        )
+
+
+@router.patch(
+    "/v1/leads/{lead_id}/status",
+    summary="Update lead status",
+    description="Update the status of a lead with optimistic locking for concurrency safety. PROTECTED - requires staff authentication."
+)
+async def update_lead_status(
+    lead_id: int,
+    new_status: str = Query(..., min_length=2, max_length=50),
+    version: int = Query(..., ge=0, description="Current version for optimistic locking"),
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(require_role("admin", "user")),
+) -> LeadResponse:
+    """
+    Update the status of a single lead with optimistic locking.
+    
+    Requires version parameter to prevent concurrent update conflicts.
+    """
+    try:
+        is_admin = type(current_user).__name__ == "Admin"
+        statement = select(Lead).where(Lead.id == lead_id)
+        
+        if not is_admin:
+            statement = statement.where(Lead.user_id == current_user.id)
+        
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found",
+            )
+        
+        # Optimistic locking: check version matches
+        if lead.version != version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lead was modified by another user. Please refresh and try again.",
+            )
+
+        lead.status = new_status.strip().lower()
+        lead.version += 1
+        
+        # Use transaction for atomic update
+        async with session.begin_nested():
+            session.add(lead)
+            await session.commit()
+        
+        await session.refresh(lead)
+
+        return LeadResponse.model_validate(lead)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update lead status",
+        )
+
 
