@@ -5,6 +5,7 @@ import Hero from './components/Hero'
 import About from './components/About'
 import LeadForm from './components/LeadForm'
 import Footer from './components/Footer'
+import SuggestionsPage from './components/SuggestionsPage'
 import AdminLogin from './components/AdminLogin'
 import SignupForm from './components/SignupForm'
 import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage, AdminProfilePage, AdminApprovalsPage, AdminUsersPage } from './components/AdminDashboard'
@@ -31,6 +32,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<PublicLayout />} />
+          <Route path="/suggestions" element={<SuggestionsPage />} />
           <Route path="/signup" element={<SignupForm />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route

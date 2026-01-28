@@ -27,6 +27,15 @@
   color: var(--dark-text);
 }
 
+.logo-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.logo-link:hover {
+  color: var(--primary-red);
+}
+
 .nav {
   display: flex;
   gap: clamp(0.75rem, 2vw, 2rem);
