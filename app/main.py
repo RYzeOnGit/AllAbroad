@@ -7,10 +7,20 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, ensure_testimonials_image_column
 from app.routes import api_router
-from app.models import Lead, User  # noqa: F401 - imported for metadata registration
+from app.models import (
+    Lead,
+    User,
+    Destination,
+    Testimonial,
+    WhyUsCard,
+    CtaTrustItem,
+    HeroStat,
+    SiteContent,
+)  # noqa: F401 - imported for metadata registration
 from app.seed_admin import seed_admin
+from app.seed_content import seed_content
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +149,15 @@ async def startup_event():
         # #region agent log
         _debug_log("app/main.py:40", "Database initialization succeeded", {}, "D")
         # #endregion
+        await ensure_testimonials_image_column()
         try:
             await seed_admin()
         except Exception as seed_err:
             logger.warning("Admin seeding failed: %s", seed_err)
+        try:
+            await seed_content()
+        except Exception as seed_err:
+            logger.warning("Content seeding failed: %s", seed_err)
     except Exception as exc:
         # Log the error but allow the app to start so non-DB routes still work
         logger.error("Database initialization failed: %s", exc)

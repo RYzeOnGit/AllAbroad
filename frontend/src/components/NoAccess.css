@@ -15,3 +15,13 @@
   color: #444;
   line-height: 1.6;
 }
+
+.no-access-link {
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.no-access-link:hover {
+  text-decoration: underline;
+}

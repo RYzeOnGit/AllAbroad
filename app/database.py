@@ -1,5 +1,6 @@
 """Database connection and session management."""
 from sqlmodel import SQLModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.config import settings
 
@@ -35,6 +36,19 @@ async def init_db():
     """Initialize database tables."""
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+
+
+async def ensure_testimonials_image_column():
+    """Add testimonials.image column if missing (e.g. DB created before the field existed)."""
+    try:
+        async with engine.connect() as c:
+            r = await c.execute(text("SELECT 1 FROM pragma_table_info('testimonials') WHERE name='image'"))
+            if r.fetchone() is not None:
+                return
+        async with engine.begin() as c:
+            await c.execute(text("ALTER TABLE testimonials ADD COLUMN image VARCHAR(20) DEFAULT ''"))
+    except Exception:
+        pass
 
 
 async def get_session():
