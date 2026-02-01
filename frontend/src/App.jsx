@@ -79,7 +79,7 @@ function App() {
           </Route>
           <Route path="/admin/no-access" element={<NoAccess />} />
           <Route
-            path="/student/dashboard"
+            path="/student/dashboard/*"
             element={(
               <ProtectedRoute allowRoles={['lead']}>
                 <StudentDashboard />

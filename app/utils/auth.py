@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.config import settings
 from app.models.user import User, Admin, PendingApprovalUser
+from app.models.student import Student
 from app.database import get_session
 
 security = HTTPBearer()
@@ -74,7 +75,14 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    model = Admin if role == "admin" else User
+    # Select model based on role
+    if role == "admin":
+        model = Admin
+    elif role == "lead":
+        model = Student
+    else:
+        model = User
+    
     statement = select(model).where(model.id == int(user_id))
     result = await session.execute(statement)
     principal = result.scalar_one_or_none()
@@ -86,7 +94,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if isinstance(principal, User) and not principal.is_active:
+    # Check if account is active (for User or Student)
+    if isinstance(principal, (User, Student)) and not principal.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Your account has been deactivated.",
@@ -100,7 +109,12 @@ def require_role(*allowed_roles: str):
     async def role_checker(current_user = Depends(get_current_user)):
         # Determine role based on model type name
         user_type = type(current_user).__name__
-        user_role = "admin" if user_type == "Admin" else "user"
+        if user_type == "Admin":
+            user_role = "admin"
+        elif user_type == "Student":
+            user_role = "lead"
+        else:
+            user_role = "user"
         
         if user_role not in allowed_roles:
             raise HTTPException(

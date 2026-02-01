@@ -18,10 +18,15 @@ else:
     database_url = raw_url
 
 # Create async database engine
+connect_args = {}
+if database_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False, "timeout": 10}
+
 engine = create_async_engine(
     database_url,
     echo=settings.environment == "development",
     pool_pre_ping=True,
+    connect_args=connect_args,
 )
 
 # Create async session factory

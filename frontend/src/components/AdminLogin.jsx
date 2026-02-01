@@ -29,21 +29,32 @@ export default function AdminLogin() {
     setError('')
     setLoading(true)
 
+    console.log('Login attempt:', { mode, email: email.substring(0, 10) + '...', passwordLength: password.length })
+
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
+      console.log('Response status:', response.status, response.statusText)
 
       if (!response.ok) {
-        const data = await response.json()
-        setError(data.detail || 'Login failed')
+        const data = await response.json().catch(() => ({}))
+        console.error('Login error:', response.status, data)
+        setError(data.detail || `Login failed (${response.status})`)
         setLoading(false)
         return
       }
 
       const data = await response.json()
+      console.log('Login success:', data.role)
       login(data.access_token, data.role)
       if (data.role === 'lead') {
         navigate('/student/dashboard')
@@ -51,7 +62,12 @@ export default function AdminLogin() {
       }
       navigate('/admin/dashboard')
     } catch (err) {
-      setError('Network error. Check backend is running.')
+      console.error('Login exception:', err)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. The server may be busy. Please try again.')
+      } else {
+        setError(err.message || 'Network error. Check backend is running.')
+      }
       setLoading(false)
     }
   }
@@ -114,14 +130,33 @@ export default function AdminLogin() {
             </button>
           </form>
         ) : (
-          <div className="auth-student-placeholder auth-form-block">
-            <p className="auth-student-message">
-              Student sign-in and your dashboard are coming soon. In the meantime, use Apply to submit your application.
-            </p>
-            <Link to="/apply" className="auth-submit auth-submit-link">
-              Go to Apply
-            </Link>
-          </div>
+          <form onSubmit={handleSubmit} className="auth-form-block">
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="student-email">Email</label>
+              <input
+                id="student-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="student-password">Password</label>
+              <input
+                id="student-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+            <button type="submit" disabled={loading} className="auth-submit">
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
         )}
 
         <div className="auth-link-row">

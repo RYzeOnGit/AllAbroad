@@ -1691,7 +1691,12 @@ function NewLeadsCountProvider({ children }) {
 
   useEffect(() => {
     locationRef.current = location.pathname
-  }, [location.pathname])
+    // When user views Leads Table, mark current count as seen immediately
+    if (location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/') {
+      // Update lastSeenNewCount to current count so badge disappears
+      setLastSeenNewCount(newLeadsCount)
+    }
+  }, [location.pathname, newLeadsCount])
 
   const fetchCount = useCallback(async () => {
     try {

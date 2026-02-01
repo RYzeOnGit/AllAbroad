@@ -12,6 +12,13 @@ from app.routes import api_router
 from app.models import (
     Lead,
     User,
+    Student,
+    Document,
+    Application,
+    Visa,
+    Payment,
+    Message,
+    TimelineEvent,
     Destination,
     Testimonial,
     WhyUsCard,
