@@ -137,7 +137,7 @@ function LeadsTable({
                   <select
                     className="status-select"
                     value={lead.status || 'new'}
-                    onChange={(e) => onStatusChange(lead.id, e.target.value)}
+                    onChange={(e) => onStatusChange(lead.id, e.target.value, lead.version)}
                   >
                     <option value="new">New</option>
                     <option value="contacted">Contacted</option>
@@ -205,6 +205,7 @@ function DraggableKanbanCard({ lead, onStatusChange }) {
         </div>
         <div className="kanban-row">
           <span>{lead.degree || '—'}</span>
+          {lead.degree && lead.subject && <span className="kanban-separator">•</span>}
           <span>{lead.subject || '—'}</span>
         </div>
         <div className="kanban-row meta">
@@ -218,7 +219,7 @@ function DraggableKanbanCard({ lead, onStatusChange }) {
           value={lead.status || 'new'}
           onChange={(e) => {
             e.stopPropagation()
-            onStatusChange(lead.id, e.target.value)
+            onStatusChange(lead.id, e.target.value, lead.version)
           }}
         >
           <option value="new">New</option>
@@ -304,7 +305,7 @@ function KanbanColumn({ title, statusKey, leads, onStatusChange }) {
               <select
                 className="status-select small"
                 value={lead.status || 'new'}
-                onChange={(e) => onStatusChange(lead.id, e.target.value)}
+                onChange={(e) => onStatusChange(lead.id, e.target.value, lead.version)}
               >
                 <option value="new">New</option>
                 <option value="contacted">Contacted</option>
@@ -329,9 +330,27 @@ function KanbanView({ allLeads, onStatusChange }) {
     won: [],
     lost: [],
   })
+  const [error, setError] = useState(null)
+  const [originalPosition, setOriginalPosition] = useState(null) // Track original position for rollback
+  const pendingUpdateRef = useRef(null) // Track pending status update to prevent race conditions
+  const isProcessingRef = useRef(false) // Prevent multiple simultaneous updates
 
   // Initialize items from allLeads
   useEffect(() => {
+    // Skip update if we have a pending optimistic update for the same lead
+    if (pendingUpdateRef.current) {
+      const { leadId, newStatus } = pendingUpdateRef.current
+      // Check if the backend data already reflects our change
+      const leadInNewStatus = allLeads.find(l => l.id === leadId && (l.status || 'new').toLowerCase() === newStatus)
+      if (leadInNewStatus) {
+        // Backend has caught up, clear the pending update
+        pendingUpdateRef.current = null
+      } else {
+        // Backend hasn't updated yet, keep our optimistic state
+        return
+      }
+    }
+    
     const byStatus = {
       new: [],
       contacted: [],
@@ -353,7 +372,7 @@ function KanbanView({ allLeads, onStatusChange }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Require 8px of movement before dragging starts
+        distance: 5, // Reduced from 8px for smoother activation
       },
     }),
     useSensor(KeyboardSensor, {
@@ -363,28 +382,13 @@ function KanbanView({ allLeads, onStatusChange }) {
 
   const handleDragStart = (event) => {
     setActiveId(event.active.id)
-  }
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event
-    setActiveId(null)
-
-    if (!over) return
-
-    const activeId = active.id.toString()
-    const overId = over.id.toString()
-
-    // Extract lead ID from active
+    setError(null) // Clear any previous errors
+    
+    // Store original position for potential rollback
+    const activeId = event.active.id.toString()
     const leadIdMatch = activeId.match(/^lead-(\d+)$/)
-    if (!leadIdMatch) return
-
-    const leadId = parseInt(leadIdMatch[1])
-
-    // Check if dropping on a column
-    const columnMatch = overId.match(/^column-(.+)$/)
-    if (columnMatch) {
-      const newStatus = columnMatch[1]
-      // Find current status to avoid unnecessary API calls
+    if (leadIdMatch) {
+      const leadId = parseInt(leadIdMatch[1])
       let currentStatus = null
       for (const [statusKey, leads] of Object.entries(items)) {
         if (leads.some((l) => l.id === leadId)) {
@@ -392,35 +396,132 @@ function KanbanView({ allLeads, onStatusChange }) {
           break
         }
       }
-      // Only update if status changed
-      if (currentStatus && currentStatus !== newStatus) {
-        onStatusChange(leadId, newStatus)
-      }
+      setOriginalPosition({ leadId, status: currentStatus })
+    }
+  }
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (!over) {
+      setOriginalPosition(null)
       return
     }
 
-    // If dropping on another card, find which column it's in
-    const overLeadMatch = overId.match(/^lead-(\d+)$/)
-    if (overLeadMatch) {
-      // Find the column this lead belongs to
-      for (const [statusKey, leads] of Object.entries(items)) {
-        if (leads.some((l) => l.id === parseInt(overLeadMatch[1]))) {
-          const newStatus = statusKey
-          // Find current status
-          let currentStatus = null
-          for (const [sk, ls] of Object.entries(items)) {
-            if (ls.some((l) => l.id === leadId)) {
-              currentStatus = sk
-              break
-            }
+    const activeId = active.id.toString()
+    const overId = over.id.toString()
+
+    // Extract lead ID from active
+    const leadIdMatch = activeId.match(/^lead-(\d+)$/)
+    if (!leadIdMatch) {
+      setOriginalPosition(null)
+      return
+    }
+
+    const leadId = parseInt(leadIdMatch[1])
+    let newStatus = null
+
+    // Check if dropping on a column
+    const columnMatch = overId.match(/^column-(.+)$/)
+    if (columnMatch) {
+      newStatus = columnMatch[1]
+    } else {
+      // If dropping on another card, find which column it's in
+      const overLeadMatch = overId.match(/^lead-(\d+)$/)
+      if (overLeadMatch) {
+        // Find the column this lead belongs to
+        for (const [statusKey, leads] of Object.entries(items)) {
+          if (leads.some((l) => l.id === parseInt(overLeadMatch[1]))) {
+            newStatus = statusKey
+            break
           }
-          // Only update if status changed
-          if (currentStatus && currentStatus !== newStatus) {
-            onStatusChange(leadId, newStatus)
-          }
-          return
         }
       }
+    }
+
+    if (!newStatus) {
+      setOriginalPosition(null)
+      return
+    }
+
+    // Find current status using current items state
+    let currentStatus = null
+    let lead = null
+    for (const [statusKey, leads] of Object.entries(items)) {
+      const found = leads.find((l) => l.id === leadId)
+      if (found) {
+        currentStatus = statusKey
+        lead = found
+        break
+      }
+    }
+
+    // Only update if status changed and we're not already processing
+    if (currentStatus && currentStatus !== newStatus && lead && !isProcessingRef.current) {
+      isProcessingRef.current = true
+      
+      // Store snapshot of original items for rollback
+      const originalItemsSnapshot = JSON.parse(JSON.stringify(items))
+      
+      // Track pending update
+      pendingUpdateRef.current = { leadId, newStatus }
+      
+      // Optimistically update UI
+      setItems((prevItems) => {
+        const updated = { ...prevItems }
+        updated[currentStatus] = updated[currentStatus].filter((l) => l.id !== leadId)
+        updated[newStatus] = [...updated[newStatus], { ...lead, status: newStatus }]
+        return updated
+      })
+
+      try {
+        // Call backend to update status - pass version if available
+        // Use null if version is undefined/0, which will trigger a fetch
+        const leadVersion = (lead.version !== undefined && lead.version !== null) ? lead.version : null
+        const updatedLead = await onStatusChange(leadId, newStatus, leadVersion)
+        
+        // Update the lead in our local state with the new version
+        if (updatedLead && updatedLead.version !== undefined) {
+          setItems((prevItems) => {
+            const updated = { ...prevItems }
+            // Find and update the lead in the new status column
+            const leadIndex = updated[newStatus].findIndex((l) => l.id === leadId)
+            if (leadIndex !== -1) {
+              updated[newStatus] = [...updated[newStatus]]
+              updated[newStatus][leadIndex] = { ...updated[newStatus][leadIndex], version: updatedLead.version }
+            }
+            return updated
+          })
+        }
+        
+        setOriginalPosition(null) // Clear original position on success
+        // Keep pendingUpdateRef until useEffect sees the backend update
+      } catch (err) {
+        // Rollback on failure - restore original snapshot
+        pendingUpdateRef.current = null
+        setItems(originalItemsSnapshot)
+        
+        // Extract error message properly
+        let errorMessage = 'Unknown error'
+        if (err instanceof Error) {
+          errorMessage = err.message
+        } else if (typeof err === 'string') {
+          errorMessage = err
+        } else if (err && typeof err === 'object') {
+          errorMessage = err.message || err.detail || err.error || JSON.stringify(err)
+        }
+        
+        setError(`Failed to update lead status: ${errorMessage}`)
+        setOriginalPosition(null)
+        
+        // Auto-clear error after 5 seconds
+        setTimeout(() => setError(null), 5000)
+      } finally {
+        isProcessingRef.current = false
+      }
+    } else {
+      setOriginalPosition(null)
     }
   }
 
@@ -436,6 +537,11 @@ function KanbanView({ allLeads, onStatusChange }) {
         <h3>Kanban Board</h3>
         <span className="panel-subtitle">Drag and drop leads to change status</span>
       </div>
+      {error && (
+        <div className="admin-alert admin-alert-error" role="alert">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -748,12 +854,14 @@ export function AdminLeadsPage() {
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
 
-  const fetchTable = async (pageArg = page, overrides = {}) => {
+  const fetchTable = async (pageArg = page, overrides = {}, showLoading = true) => {
     const deg = overrides.degree !== undefined ? overrides.degree : degreeFilter
     const subj = overrides.subject !== undefined ? overrides.subject : subjectFilter
     const subjOther = overrides.subject_other !== undefined ? overrides.subject_other : subjectOtherFilter
-    setLoading(true)
-    setError('')
+    if (showLoading) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const params = new URLSearchParams({ page: String(pageArg), page_size: String(pageSize) })
       if (deg) params.set('degree', deg)
@@ -771,22 +879,53 @@ export function AdminLeadsPage() {
       const data = await res.json()
       setTableData(data)
     } catch (err) {
-      setError('Failed to load leads.')
+      if (showLoading) {
+        setError('Failed to load leads.')
+      }
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }
 
-  const handleStatusChange = async (leadId, newStatus) => {
-    try {
-      await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}`, {
-        method: 'PATCH',
-        headers: { ...authHeaders },
-      })
-      fetchTable(page)
-    } catch {
-      setError('Failed to update lead status.')
+  const handleStatusChange = async (leadId, newStatus, version = null) => {
+    // If version not provided, fetch the lead first to get its version
+    let leadVersion = version
+    if (leadVersion === null) {
+      try {
+        const leadRes = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
+          headers: { ...authHeaders },
+        })
+        if (leadRes.ok) {
+          const leadData = await leadRes.json()
+          leadVersion = leadData.version || 0
+        } else {
+          leadVersion = 0 // Fallback
+        }
+      } catch {
+        leadVersion = 0 // Fallback
+      }
     }
+    
+    const response = await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}&version=${leadVersion}`, {
+      method: 'PATCH',
+      headers: { ...authHeaders },
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `HTTP ${response.status}: Failed to update status`)
+    }
+    
+    // Get the updated lead from response to return the new version
+    const updatedLead = await response.json()
+    
+    // Refresh data silently in background (no loading state)
+    fetchTable(page, {}, false)
+    
+    // Return updated lead so caller can update local state
+    return updatedLead
   }
 
   useEffect(() => {
@@ -874,9 +1013,11 @@ export function AdminKanbanPage() {
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
 
-  const fetchLeads = async () => {
-    setLoading(true)
-    setError('')
+  const fetchLeads = async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const res = await fetch(`${API_BASE}/v1/leads?page=1&page_size=500`, {
         headers: { ...authHeaders },
@@ -888,22 +1029,53 @@ export function AdminKanbanPage() {
       setAllLeads(Array.isArray(data.items) ? data.items : [])
     } catch (err) {
       console.error('Error fetching leads:', err)
-      setError(err.message || 'Failed to load leads')
+      if (showLoading) {
+        setError(err.message || 'Failed to load leads')
+      }
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }
 
-  const handleStatusChange = async (leadId, newStatus) => {
-    try {
-      await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}`, {
-        method: 'PATCH',
-        headers: { ...authHeaders },
-      })
-      fetchLeads()
-    } catch {
-      setError('Failed to update lead status.')
+  const handleStatusChange = async (leadId, newStatus, version = null) => {
+    // If version not provided, fetch the lead first to get its version
+    let leadVersion = version
+    if (leadVersion === null) {
+      try {
+        const leadRes = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
+          headers: { ...authHeaders },
+        })
+        if (leadRes.ok) {
+          const leadData = await leadRes.json()
+          leadVersion = leadData.version || 0
+        } else {
+          leadVersion = 0 // Fallback
+        }
+      } catch {
+        leadVersion = 0 // Fallback
+      }
     }
+    
+    const response = await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}&version=${leadVersion}`, {
+      method: 'PATCH',
+      headers: { ...authHeaders },
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `HTTP ${response.status}: Failed to update status`)
+    }
+    
+    // Get the updated lead from response to return the new version
+    const updatedLead = await response.json()
+    
+    // Refresh data silently in background (no loading state)
+    fetchLeads(false)
+    
+    // Return updated lead so caller can update local state
+    return updatedLead
   }
 
   useEffect(() => {
@@ -1738,7 +1910,7 @@ export default function AdminDashboard() {
           <button className="logout-btn" onClick={handleLogout}>
             Logout
           </button>
-        </div>
+    </div>
       </aside>
       <main className="admin-main">
         <div key={location.pathname} className="admin-main-content">

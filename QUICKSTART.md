@@ -1,88 +1,55 @@
 # Quick Start Guide
 
-## Step 1: Install Python Virtual Environment Support
+## Backend (FastAPI)
 
 ```bash
-sudo apt update
-sudo apt install -y python3.12-venv
-```
+# Navigate to project root
+cd /home/ryan/Coding/projects/AllAbroad
 
-## Step 2: Run Setup Script
-
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-**OR** do it manually:
-
-```bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate it
+# Activate virtual environment
 source venv/bin/activate
 
-# Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+# Start the server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Step 3: Create Environment File
+**Backend will be available at:** http://localhost:8000
 
-Create a `.env` file in the project root:
+**API Docs:** http://localhost:8000/docs
+
+---
+
+## Frontend (React + Vite)
 
 ```bash
-cp .env.example .env
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies (first time only)
+npm install
+
+# Start development server
+npm run dev
 ```
 
-Then edit `.env` and add your Supabase PostgreSQL connection string:
+**Frontend will be available at:** http://localhost:5173 (or the port shown in terminal)
 
-```
-DATABASE_URL=postgresql://user:password@host:port/database
-ENVIRONMENT=development
-LOG_LEVEL=INFO
-```
+---
 
-**Note:** If you don't have a database yet, you can still run the server to see the endpoints, but they won't work without a valid DATABASE_URL.
+## Tips
 
-## Step 4: Run the Server
+- **Backend auto-reloads** when you change Python files (thanks to `--reload` flag)
+- **Frontend auto-reloads** when you change React files (Vite HMR)
+- Make sure your `.env` file is configured with:
+  - `DATABASE_URL`
+  - `JWT_SECRET`
+  - `ADMIN_EMAIL` and `ADMIN_PASSWORD` (optional, for auto-seeding)
+- If you see port conflicts, change the port:
+  - Backend: `--port 8001`
+  - Frontend: Edit `vite.config.js` or use `npm run dev -- --port 3001`
 
-```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
+---
 
-# Run the server
-uvicorn app.main:app --reload
-```
+## Stop Servers
 
-## Step 5: View API Documentation
-
-Once the server is running, visit:
-
-- **Interactive API Docs (Swagger UI):** http://localhost:8000/docs
-- **Alternative Docs (ReDoc):** http://localhost:8000/redoc
-- **Health Check:** http://localhost:8000/health
-
-## Available Endpoints
-
-- `GET /` - Root health check
-- `GET /health` - Health check endpoint
-- `POST /api/leads` - Submit a new lead
-
-## Test the API
-
-```bash
-curl -X POST http://localhost:8000/api/leads \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "John Doe",
-    "phone": "+1234567890",
-    "country": "USA",
-    "target_country": "UK",
-    "intake": "Fall 2024",
-    "budget": "$20,000-$30,000",
-    "source": "website"
-  }'
-```
-
+Press `Ctrl+C` in the terminal where the server is running.

@@ -119,6 +119,7 @@ class LeadResponse(BaseModel):
     source: str
     created_at: datetime
     status: str
+    version: int = 0  # Optimistic locking version
 
     class Config:
         from_attributes = True
