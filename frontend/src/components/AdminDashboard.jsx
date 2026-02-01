@@ -23,6 +23,48 @@ import './AdminDashboard.css'
 
 const API_BASE = '/api'
 
+// Shared utility function for updating lead status
+async function updateLeadStatus(leadId, newStatus, version, authHeaders, onSuccess) {
+  // If version not provided, fetch the lead first to get its version
+  let leadVersion = version
+  if (leadVersion === null) {
+    try {
+      const leadRes = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
+        headers: { ...authHeaders },
+      })
+      if (leadRes.ok) {
+        const leadData = await leadRes.json()
+        leadVersion = leadData.version || 0
+      } else {
+        leadVersion = 0 // Fallback
+      }
+    } catch {
+      leadVersion = 0 // Fallback
+    }
+  }
+  
+  const response = await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}&version=${leadVersion}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders },
+  })
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `HTTP ${response.status}: Failed to update status`)
+  }
+  
+  // Get the updated lead from response to return the new version
+  const updatedLead = await response.json()
+  
+  // Call success callback if provided (for silent refresh)
+  if (onSuccess) {
+    onSuccess()
+  }
+  
+  // Return updated lead so caller can update local state
+  return updatedLead
+}
+
 function formatBudget(lead) {
   const c = lead.budget_currency || ''
   const fmt = (n) => (n != null && n !== '') ? Number(n).toLocaleString() : null
@@ -269,57 +311,6 @@ function DroppableKanbanColumn({ title, statusKey, leads, onStatusChange }) {
   )
 }
 
-function KanbanColumn({ title, statusKey, leads, onStatusChange }) {
-  // Fallback for non-drag version (keeping for compatibility)
-  return (
-    <div className="kanban-column">
-      <div className="kanban-column-header">
-        <h4>{title}</h4>
-        <span className="kanban-count">{leads.length}</span>
-      </div>
-      <div className="kanban-column-body">
-        {leads.length === 0 && <div className="kanban-empty">No leads</div>}
-        {leads.map((lead) => (
-          <div key={lead.id} className="kanban-card">
-            <div className="kanban-card-header">
-              <span className="kanban-name">{lead.name}</span>
-              <StatusPill status={lead.status} />
-            </div>
-            <div className="kanban-card-body">
-              <div className="kanban-row">
-                <span>{lead.country} → {lead.target_country}</span>
-              </div>
-              <div className="kanban-row">
-                <span>{lead.intake}</span>
-              </div>
-              <div className="kanban-row">
-                <span>{lead.degree || '—'}</span>
-                <span>{lead.subject || '—'}</span>
-              </div>
-              <div className="kanban-row meta">
-                <span>{lead.source}</span>
-                <span>{formatBudget(lead)}</span>
-              </div>
-            </div>
-            <div className="kanban-card-footer">
-              <select
-                className="status-select small"
-                value={lead.status || 'new'}
-                onChange={(e) => onStatusChange(lead.id, e.target.value, lead.version)}
-              >
-                <option value="new">New</option>
-                <option value="contacted">Contacted</option>
-                <option value="qualified">Qualified</option>
-                <option value="won">Won</option>
-                <option value="lost">Lost</option>
-              </select>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function KanbanView({ allLeads, onStatusChange }) {
   const [activeId, setActiveId] = useState(null)
@@ -890,42 +881,9 @@ export function AdminLeadsPage() {
   }
 
   const handleStatusChange = async (leadId, newStatus, version = null) => {
-    // If version not provided, fetch the lead first to get its version
-    let leadVersion = version
-    if (leadVersion === null) {
-      try {
-        const leadRes = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
-          headers: { ...authHeaders },
-        })
-        if (leadRes.ok) {
-          const leadData = await leadRes.json()
-          leadVersion = leadData.version || 0
-        } else {
-          leadVersion = 0 // Fallback
-        }
-      } catch {
-        leadVersion = 0 // Fallback
-      }
-    }
-    
-    const response = await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}&version=${leadVersion}`, {
-      method: 'PATCH',
-      headers: { ...authHeaders },
+    return updateLeadStatus(leadId, newStatus, version, authHeaders, () => {
+      fetchTable(page, {}, false)
     })
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || `HTTP ${response.status}: Failed to update status`)
-    }
-    
-    // Get the updated lead from response to return the new version
-    const updatedLead = await response.json()
-    
-    // Refresh data silently in background (no loading state)
-    fetchTable(page, {}, false)
-    
-    // Return updated lead so caller can update local state
-    return updatedLead
   }
 
   useEffect(() => {
@@ -1040,42 +998,9 @@ export function AdminKanbanPage() {
   }
 
   const handleStatusChange = async (leadId, newStatus, version = null) => {
-    // If version not provided, fetch the lead first to get its version
-    let leadVersion = version
-    if (leadVersion === null) {
-      try {
-        const leadRes = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
-          headers: { ...authHeaders },
-        })
-        if (leadRes.ok) {
-          const leadData = await leadRes.json()
-          leadVersion = leadData.version || 0
-        } else {
-          leadVersion = 0 // Fallback
-        }
-      } catch {
-        leadVersion = 0 // Fallback
-      }
-    }
-    
-    const response = await fetch(`${API_BASE}/v1/leads/${leadId}/status?new_status=${encodeURIComponent(newStatus)}&version=${leadVersion}`, {
-      method: 'PATCH',
-      headers: { ...authHeaders },
+    return updateLeadStatus(leadId, newStatus, version, authHeaders, () => {
+      fetchLeads(false)
     })
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.detail || `HTTP ${response.status}: Failed to update status`)
-    }
-    
-    // Get the updated lead from response to return the new version
-    const updatedLead = await response.json()
-    
-    // Refresh data silently in background (no loading state)
-    fetchLeads(false)
-    
-    // Return updated lead so caller can update local state
-    return updatedLead
   }
 
   useEffect(() => {
