@@ -40,7 +40,7 @@ const WhyUs = () => {
             to="/apply"
             className="inline-flex items-center px-6 py-3 rounded-lg bg-coral text-white font-medium hover:bg-coral/90 transition-colors"
           >
-            Book Free Call
+            Register Here
           </Link>
         </div>
       </div>

@@ -152,7 +152,7 @@ export default function AdminLogin() {
                 required
                 className="auth-input"
               />
-            </div>
+          </div>
             <button type="submit" disabled={loading} className="auth-submit">
               {loading ? 'Logging in...' : 'Login'}
             </button>

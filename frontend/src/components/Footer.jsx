@@ -1,6 +1,6 @@
 import React from "react"
 import { Link } from "react-router-dom"
-import { Plane, Facebook, Instagram, Linkedin } from "lucide-react"
+import { Plane, Facebook, Instagram, Music2 } from "lucide-react"
 
 const Footer = () => {
   return (
@@ -17,14 +17,32 @@ const Footer = () => {
               Turning study abroad dreams into life-changing adventures. Join thousands of students who&apos;ve discovered their global path with AllAbroad.
             </p>
             <div className="flex gap-3 mt-4">
-              <a href="#" className="text-slate-400 hover:text-coral transition-colors" aria-label="Facebook">
+              <a
+                href="https://www.facebook.com/people/AllAbroad/61587169367379/?mibextid=wwXIfr&rdid=g9qq9jZwAE2HnhTc&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F1DgUTYiyxF%2F%3Fmibextid%3DwwXIfr"
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 hover:text-coral transition-colors"
+                aria-label="Facebook"
+              >
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="text-slate-400 hover:text-coral transition-colors" aria-label="Instagram">
+              <a
+                href="https://www.instagram.com/_allabroad?igsh=MWRkMzNiMmNrdGJrZA%3D%3D"
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 hover:text-coral transition-colors"
+                aria-label="Instagram"
+              >
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="text-slate-400 hover:text-coral transition-colors" aria-label="LinkedIn">
-                <Linkedin className="w-5 h-5" />
+              <a
+                href="https://www.tiktok.com/@allabroad4?_r=1&_t=ZS-93fII7tBJb7"
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 hover:text-coral transition-colors"
+                aria-label="TikTok"
+              >
+                <Music2 className="w-5 h-5" />
               </a>
             </div>
           </div>
@@ -34,7 +52,6 @@ const Footer = () => {
             <h4 className="font-semibold text-white mb-4">Explore</h4>
             <ul className="space-y-2">
               <li><a href="#destinations" className="text-slate-400 hover:text-coral transition-colors">Destinations</a></li>
-              <li><a href="#destinations" className="text-slate-400 hover:text-coral transition-colors">Programs</a></li>
               <li><Link to="/apply" className="text-slate-400 hover:text-coral transition-colors">Apply</Link></li>
             </ul>
           </div>

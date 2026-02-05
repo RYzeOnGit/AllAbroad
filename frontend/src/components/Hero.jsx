@@ -10,11 +10,14 @@ const Hero = () => {
   const copy = content?.copy ?? {}
   const stats = content?.hero_stats ?? []
   const fallbackStats = [
-    { value: "15K+", label: "Students Placed" },
+    { value: "100+", label: "Students" },
     { value: "98%", label: "Visa Success" },
     { value: "4.9", label: "Rating" },
   ]
-  const displayStats = stats.length ? stats : fallbackStats
+  const baseStats = stats.length ? stats : fallbackStats
+  const displayStats = baseStats.map((s, index) =>
+    index === 0 ? { ...s, value: "100+", label: "Students" } : s
+  )
 
   return (
     <section className="relative min-h-screen bg-gradient-hero overflow-hidden">
@@ -62,12 +65,6 @@ const Hero = () => {
                 Explore Programs
                 <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5" aria-hidden />
               </a>
-              <Link
-                to="/apply"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border-2 border-foreground/20 text-foreground font-semibold hover:border-coral hover:text-coral transition-colors"
-              >
-                Take the Quiz
-              </Link>
             </div>
 
             {/* Stats */}

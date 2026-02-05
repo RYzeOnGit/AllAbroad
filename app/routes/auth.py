@@ -69,7 +69,7 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_sessi
             expires_delta=timedelta(minutes=60),
         )
         return LoginResponse(access_token=token, token_type="bearer", role="user")
-
+    
     # Try student last
     logger.info(f"Checking student login for email: {email}")
     try:

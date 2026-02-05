@@ -4,8 +4,22 @@
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-coral to-orange-400 bg-clip-text text-transparent;
+    /* Shifted from orange/cyan to purple tones */
+    @apply bg-gradient-to-r from-purple-400 to-fuchsia-500 bg-clip-text text-transparent;
   }
+}
+
+/* Override accent utility classes to use purple instead of orange on the homepage */
+.bg-coral {
+  background-color: #a855f7 !important; /* purple-500 */
+}
+
+.text-coral {
+  color: #a855f7 !important;
+}
+
+.bg-gradient-sunset {
+  background: linear-gradient(135deg, #a855f7, #d946ef) !important; /* purple → fuchsia */
 }
 
 @keyframes fly-across {
@@ -90,4 +104,5 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Playfair Display', serif;
   font-weight: 700;
 }
+
 
