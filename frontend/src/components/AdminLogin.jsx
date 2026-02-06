@@ -1,73 +1,188 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import './AdminLogin.css'
 
 export default function AdminLogin() {
+  const [mode, setMode] = useState('staff') // 'staff' | 'student'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
+
+  useEffect(() => {
+    const e = searchParams.get('error')
+    if (e === 'deactivated') setError('Your account has been deactivated.')
+    else if (e === 'invalid_credentials') setError('Invalid username or password')
+  }, [searchParams])
+
+  const handleModeChange = (m) => {
+    setMode(m)
+    setError('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
+    console.log('Login attempt:', { mode, email: email.substring(0, 10) + '...', passwordLength: password.length })
+
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
+      console.log('Response status:', response.status, response.statusText)
 
       if (!response.ok) {
-        const data = await response.json()
-        setError(data.detail || 'Login failed')
+        const data = await response.json().catch(() => ({}))
+        console.error('Login error:', response.status, data)
+        setError(data.detail || `Login failed (${response.status})`)
         setLoading(false)
         return
       }
 
       const data = await response.json()
+      console.log('Login success:', data.role)
+      
+      // Validate that the returned role matches the selected mode
+      if (mode === 'staff') {
+        // Staff mode should only accept 'admin' or 'user' roles
+        if (data.role !== 'admin' && data.role !== 'user') {
+          setError('This account is not authorized for staff login. Please sign in as student.')
+          setLoading(false)
+          return
+        }
+      } else if (mode === 'student') {
+        // Student mode should only accept 'lead' role
+        if (data.role !== 'lead') {
+          setError('This account is not authorized for student login. Please sign in as staff.')
+          setLoading(false)
+          return
+        }
+      }
+      
       login(data.access_token, data.role)
+      if (data.role === 'lead') {
+        navigate('/student/dashboard')
+        return
+      }
       navigate('/admin/dashboard')
     } catch (err) {
-      setError('Network error. Check backend is running.')
+      console.error('Login exception:', err)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. The server may be busy. Please try again.')
+      } else {
+        setError(err.message || 'Network error. Check backend is running.')
+      }
       setLoading(false)
     }
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <div style={{ background: 'white', padding: 40, borderRadius: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '100%', maxWidth: 400 }}>
-        <h1 style={{ textAlign: 'center', marginBottom: 30, color: '#333' }}>Staff Login</h1>
-        {error && <div style={{ background: '#f8d7da', color: '#721c24', padding: 12, borderRadius: 4, marginBottom: 20, border: '1px solid #f5c6cb' }}>{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, color: '#333' }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }}
-            />
-          </div>
-          <button type="submit" disabled={loading} style={{ width: '100%', padding: 12, background: loading ? '#999' : '#667eea', color: 'white', border: 'none', borderRadius: 4, fontSize: 16, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
-            {loading ? 'Logging in...' : 'Login'}
+    <div className="auth-page">
+      <div className="auth-page-orbs" aria-hidden>
+        <div className="auth-orb auth-orb-1" />
+        <div className="auth-orb auth-orb-2" />
+        <div className="auth-orb auth-orb-3" />
+      </div>
+      <div className="auth-card">
+        <h1 className="auth-title">Sign in</h1>
+
+        <div className="auth-mode-toggle" data-active={mode}>
+          <button
+            type="button"
+            className={`auth-tab ${mode === 'staff' ? 'active' : ''}`}
+            onClick={() => handleModeChange('staff')}
+          >
+            Sign in as staff
           </button>
-        </form>
+          <button
+            type="button"
+            className={`auth-tab ${mode === 'student' ? 'active' : ''}`}
+            onClick={() => handleModeChange('student')}
+          >
+            Sign in as student
+          </button>
+        </div>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        {mode === 'staff' ? (
+          <form onSubmit={handleSubmit} className="auth-form-block">
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+            <button type="submit" disabled={loading} className="auth-submit">
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="auth-form-block">
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="student-email">Email</label>
+              <input
+                id="student-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
+            <div className="auth-form-group">
+              <label className="auth-label" htmlFor="student-password">Password</label>
+              <input
+                id="student-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+          </div>
+            <button type="submit" disabled={loading} className="auth-submit">
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+        )}
+
+        <div className="auth-link-row">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="auth-link">Sign up as staff</Link>
+          {' · '}
+          <Link to="/signup/student" className="auth-link">Sign up as student</Link>
+        </div>
       </div>
     </div>
   )

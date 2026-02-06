@@ -1,7 +1,93 @@
-* {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-gradient {
+    /* Shifted from orange/cyan to purple tones */
+    @apply bg-gradient-to-r from-purple-400 to-fuchsia-500 bg-clip-text text-transparent;
+  }
+}
+
+/* Override accent utility classes to use purple instead of orange on the homepage */
+.bg-coral {
+  background-color: #a855f7 !important; /* purple-500 */
+}
+
+.text-coral {
+  color: #a855f7 !important;
+}
+
+.bg-gradient-sunset {
+  background: linear-gradient(135deg, #a855f7, #d946ef) !important; /* purple → fuchsia */
+}
+
+@keyframes fly-across {
+  0%   { transform: translateX(-120vw); }
+  100% { transform: translateX(120vw); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(12px, -12px); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animation-delay-200 { animation-delay: 200ms; }
+.animation-delay-400 { animation-delay: 400ms; }
+.animation-delay-600 { animation-delay: 600ms; }
+.animation-delay-800 { animation-delay: 800ms; }
+
+@keyframes testimonial-enter {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes testimonial-exit {
+  from { transform: scale(1);   opacity: 1; }
+  to   { transform: scale(0.95); opacity: 0; }
+}
+
+.testimonial-enter {
+  animation: testimonial-enter 0.5s ease-out forwards;
+}
+
+.testimonial-exit {
+  animation: testimonial-exit 0.5s ease-out forwards;
+}
+
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+img,
+video,
+input,
+select,
+textarea {
+  max-width: 100%;
 }
 
 body {
@@ -18,4 +104,5 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Playfair Display', serif;
   font-weight: 700;
 }
+
 

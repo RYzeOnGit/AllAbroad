@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "generated_at": "2026-01-28",
+  "note": "Seed dataset for MVP suggestions. Replace/expand with a real data pipeline later.",
+  "universities": [
+    {
+      "id": "uk-uni-manchester",
+      "name": "University of Manchester",
+      "country": "UK",
+      "city": "Manchester",
+      "languages": ["English"],
+      "degree_levels": ["bachelor", "master"],
+      "subjects": ["computer science", "data science", "business", "engineering"],
+      "fees_per_year_usd_est": 32000,
+      "ranking_band": "top_50",
+      "internships": true,
+      "placements_strength": "high",
+      "notes": ["Strong industry links", "Large international community"]
+    },
+    {
+      "id": "uk-uni-sheffield",
+      "name": "University of Sheffield",
+      "country": "UK",
+      "city": "Sheffield",
+      "languages": ["English"],
+      "degree_levels": ["bachelor", "master"],
+      "subjects": ["computer science", "engineering", "business"],
+      "fees_per_year_usd_est": 29000,
+      "ranking_band": "top_100",
+      "internships": true,
+      "placements_strength": "high",
+      "notes": ["Good value vs top-tier", "Student city"]
+    },
+    {
+      "id": "us-uni-arizona-state",
+      "name": "Arizona State University",
+      "country": "USA",
+      "city": "Tempe",
+      "languages": ["English"],
+      "degree_levels": ["bachelor", "master"],
+      "subjects": ["computer science", "business", "engineering"],
+      "fees_per_year_usd_est": 34000,
+      "ranking_band": "top_150",
+      "internships": true,
+      "placements_strength": "medium",
+      "notes": ["Large campus", "Wide program availability"]
+    },
+    {
+      "id": "ca-uni-waterloo",
+      "name": "University of Waterloo",
+      "country": "Canada",
+      "city": "Waterloo",
+      "languages": ["English"],
+      "degree_levels": ["bachelor", "master"],
+      "subjects": ["computer science", "data science", "engineering"],
+      "fees_per_year_usd_est": 28000,
+      "ranking_band": "top_100",
+      "internships": true,
+      "placements_strength": "high",
+      "notes": ["Co-op reputation", "Strong tech outcomes"]
+    },
+    {
+      "id": "de-uni-tum",
+      "name": "Technical University of Munich",
+      "country": "Germany",
+      "city": "Munich",
+      "languages": ["English", "German"],
+      "degree_levels": ["master"],
+      "subjects": ["computer science", "engineering", "data science"],
+      "fees_per_year_usd_est": 3000,
+      "ranking_band": "top_50",
+      "internships": true,
+      "placements_strength": "high",
+      "notes": ["Low tuition", "Strong EU industry hub"]
+    },
+    {
+      "id": "au-uni-monash",
+      "name": "Monash University",
+      "country": "Australia",
+      "city": "Melbourne",
+      "languages": ["English"],
+      "degree_levels": ["bachelor", "master"],
+      "subjects": ["business", "engineering", "data science", "computer science"],
+      "fees_per_year_usd_est": 36000,
+      "ranking_band": "top_100",
+      "internships": true,
+      "placements_strength": "medium",
+      "notes": ["Strong global network", "Large program catalog"]
+    }
+  ]
+}
+ 

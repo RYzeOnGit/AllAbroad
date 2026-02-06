@@ -1,0 +1,112 @@
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 2rem);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: min(400px, 100%);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.auth-title {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: clamp(1.25rem, 3vw + 0.5rem, 1.75rem);
+}
+
+.auth-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1.25rem;
+  border: 1px solid #f5c6cb;
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
+}
+
+.auth-success {
+  background: #d4edda;
+  color: #155724;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1.25rem;
+  border: 1px solid #c3e6cb;
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
+}
+
+.auth-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.auth-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+  font-size: clamp(0.9rem, 1vw + 0.5rem, 1rem);
+}
+
+.auth-input {
+  width: 100%;
+  padding: clamp(0.5rem, 1.5vw, 0.875rem);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
+  box-sizing: border-box;
+}
+
+.auth-hint {
+  font-size: clamp(0.7rem, 1vw + 0.35rem, 0.8rem);
+  color: #666;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.auth-submit {
+  width: 100%;
+  padding: clamp(0.75rem, 2vw, 1rem);
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: clamp(0.95rem, 1.2vw + 0.5rem, 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: #5a6fd6;
+}
+
+.auth-submit:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+
+.auth-link-row {
+  text-align: center;
+  margin-top: 1.25rem;
+  color: #666;
+  font-size: clamp(0.8rem, 1vw + 0.5rem, 0.95rem);
+}
+
+.auth-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}

@@ -2,14 +2,17 @@
 import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
+from app.lead_options import SUBJECTS
 from app.models.lead import Lead
 from app.models.user import User
 from app.schemas.lead import LeadCreate, LeadResponse
 from app.utils.validation import validate_lead_data
 from app.utils.auth import get_current_user, require_role
+from app.utils.count_cache import get_cached, invalidate
 
 router = APIRouter(tags=["leads"])
 
@@ -41,39 +44,52 @@ async def create_lead(
     """
     Create a new lead.
     
-    Validates input, normalizes phone number, checks for duplicates,
+    Validates input, validates email format, checks for duplicates,
     and stores the lead in the database.
     """
     # #region agent log
     _debug_log("app/routes/leads.py:20", "POST /api/leads endpoint called", {"path": str(request.url), "method": request.method, "client": str(request.client)}, "C")
-    _debug_log("app/routes/leads.py:20", "Lead data received", {"name": lead_data.name, "phone": lead_data.phone, "country": lead_data.country}, "C")
+    _debug_log("app/routes/leads.py:20", "Lead data received", {"name": lead_data.name, "email": lead_data.email, "country": lead_data.country}, "C")
     # #endregion
     try:
-        # Validate and normalize phone number
-        normalized_name, normalized_phone = validate_lead_data(
+        # Validate and normalize email (format only; no Resend/automated verification)
+        normalized_name, normalized_email = validate_lead_data(
             lead_data.name,
-            lead_data.phone
+            lead_data.email
         )
         
-        # Check for duplicate phone number
-        statement = select(Lead).where(Lead.phone == normalized_phone)
+        # Check for duplicate email
+        statement = select(Lead).where(Lead.email == normalized_email)
         result = await session.execute(statement)
         existing_lead = result.scalar_one_or_none()
         
         if existing_lead:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Lead with phone number {normalized_phone} already exists"
+                detail="A lead with this email address already exists"
             )
         
+        # Resolve subject: use subject_other when subject is "Other"
+        resolved_subject = (
+            (lead_data.subject_other or "").strip()
+            if (lead_data.subject and lead_data.subject.strip() == "Other")
+            else (lead_data.subject or "").strip()
+        )
+
         # Create new lead
         new_lead = Lead(
             name=normalized_name,
-            phone=normalized_phone,
+            email=normalized_email,
             country=lead_data.country.strip(),
             target_country=lead_data.target_country.strip(),
             intake=lead_data.intake.strip(),
-            budget=lead_data.budget.strip() if lead_data.budget else None,
+            degree=lead_data.degree.strip(),
+            subject=resolved_subject,
+            budget=None,
+            budget_amount=None,
+            budget_min=lead_data.budget_min,
+            budget_max=lead_data.budget_max,
+            budget_currency=lead_data.budget_currency.strip().upper(),
             source=lead_data.source.strip().lower(),
             status="new"
         )
@@ -81,6 +97,7 @@ async def create_lead(
         session.add(new_lead)
         await session.commit()
         await session.refresh(new_lead)
+        invalidate("new_leads")
         # #region agent log
         _debug_log("app/routes/leads.py:64", "Lead created successfully", {"lead_id": new_lead.id if hasattr(new_lead, 'id') else None}, "C")
         # #endregion
@@ -113,33 +130,65 @@ async def create_lead(
 @router.get(
     "/v1/leads",
     summary="Get paginated leads",
-    description="Retrieve leads with pagination and optional status filter. PROTECTED - requires staff authentication (admin, manager, or counselor)."
+    description="Retrieve leads with pagination and optional status filter. PROTECTED - requires staff authentication."
 )
 async def get_leads(
-    page: int = Query(1, ge=1, description="Page number (1-based)"),
-    page_size: int = Query(20, ge=1, le=100, description="Number of items per page"),
+    page: int | None = Query(None, ge=1, description="Page number (1-based)"),
+    page_size: int | None = Query(None, ge=1, le=1000, description="Number of items per page"),
     status_filter: str | None = Query(None, description="Optional status filter"),
+    degree: str | None = Query(None, description="Filter by degree"),
+    subject: str | None = Query(None, description="Filter by subject"),
+    subject_other: str | None = Query(None, description="When subject=Other, filter by custom subject (partial, case-insensitive)"),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+    current_user = Depends(require_role("admin", "user")),
 ):
     """
-    Get leads with pagination (protected - admin/staff only).
+    Get leads with pagination (protected - requires authentication).
 
-    Returns a JSON payload with items and pagination metadata.
+    Admins see all leads; users see only their leads.
     """
+    # Set defaults if not provided
+    page = page or 1
+    page_size = page_size or 20
     # #region agent log
     _debug_log(
         "app/routes/leads.py:110",
         "GET /api/v1/leads called",
-        {"user_id": current_user.id, "role": current_user.role, "page": page, "page_size": page_size, "status": status_filter},
+        {"user_id": current_user.id, "page": page, "page_size": page_size, "status": status_filter, "degree": degree, "subject": subject},
         "C",
     )
     # #endregion
 
     try:
+        # Admins see all leads; approved users see unassigned leads (user_id IS NULL) or leads assigned to them
+        is_admin = type(current_user).__name__ == "Admin"
         base_query = select(Lead)
+        
+        if not is_admin:
+            base_query = base_query.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
+        
         if status_filter:
             base_query = base_query.where(Lead.status == status_filter)
+        if degree:
+            base_query = base_query.where(Lead.degree == degree)
+        if subject:
+            if subject.strip() == "Other":
+                # "Other" leads are stored with the custom subject_other value (e.g. Psychology), not "Other".
+                # Match leads whose subject is not one of the predefined non-Other options.
+                predefined_non_other = [s for s in SUBJECTS if s != "Other"]
+                # #region agent log
+                _debug_log("app/routes/leads.py:subject=Other", "Subject filter Other: matching custom subjects", {"predefined_count": len(predefined_non_other)}, "F")
+                # #endregion
+                base_query = base_query.where(
+                    or_(Lead.subject.is_(None), Lead.subject.notin_(predefined_non_other))
+                )
+                # When subject_other is provided, narrow by partial match on Lead.subject (e.g. "psychology").
+                if subject_other and str(subject_other).strip():
+                    base_query = base_query.where(Lead.subject.ilike(f"%{subject_other.strip()}%"))
+            else:
+                base_query = base_query.where(Lead.subject == subject)
 
         # Total count
         count_result = await session.execute(base_query)
@@ -183,113 +232,61 @@ async def get_leads(
 
 
 @router.get(
-    "/v1/leads/{lead_id}",
-    response_model=LeadResponse,
-    summary="Get single lead",
-    description="Retrieve a specific lead by ID. PROTECTED - requires staff authentication."
+    "/v1/leads/new-count",
+    summary="Count of new leads",
+    description="Return the number of leads with status=new for UI badges. PROTECTED - requires authentication.",
 )
-async def get_lead(
-    lead_id: int,
+async def get_new_leads_count(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor"))
-) -> LeadResponse:
-    """
-    Get a single lead by ID (protected - admin/staff only).
-    
-    Requires valid JWT token with admin, manager, or counselor role.
-    """
-    # #region agent log
-    _debug_log("app/routes/leads.py:145", "GET /api/v1/leads/{lead_id} called", {"lead_id": lead_id, "user_id": current_user.id}, "C")
-    # #endregion
-    
+    current_user=Depends(require_role("admin", "user")),
+):
+    """Lightweight endpoint for the Leads Table nav badge. Uses COUNT and a short TTL cache for admins to cut DB load from polling. Cache invalidated on create_lead and status change."""
     try:
-        statement = select(Lead).where(Lead.id == lead_id)
-        result = await session.execute(statement)
-        lead = result.scalar_one_or_none()
-        
-        if not lead:
-            # #region agent log
-            _debug_log("app/routes/leads.py:152", "Lead not found", {"lead_id": lead_id}, "C")
-            # #endregion
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Lead with ID {lead_id} not found"
+        is_admin = type(current_user).__name__ == "Admin"
+        if is_admin:
+            async def _fetch():
+                stmt = select(func.count(Lead.id)).where(Lead.status == "new")
+                r = await session.execute(stmt)
+                return int(r.scalar() or 0)
+            count = await get_cached("new_leads", _fetch(), ttl=5)
+        else:
+            stmt = (
+                select(func.count(Lead.id))
+                .where(Lead.status == "new")
+                .where(or_(Lead.user_id.is_(None), Lead.user_id == current_user.id))
             )
-        
-        # #region agent log
-        _debug_log("app/routes/leads.py:158", "Lead retrieved successfully", {"lead_id": lead.id}, "C")
-        # #endregion
-        
-        return LeadResponse.model_validate(lead)
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        # #region agent log
-        _debug_log("app/routes/leads.py:164", "Error retrieving lead", {"lead_id": lead_id, "error_type": type(e).__name__, "error": str(e)}, "C")
-        # #endregion
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve lead"
-        )
-
-
-@router.patch(
-    "/v1/leads/{lead_id}/status",
-    summary="Update lead status",
-    description="Update the status of a lead (e.g., new, contacted, qualified, won, lost). PROTECTED - requires staff authentication."
-)
-async def update_lead_status(
-    lead_id: int,
-    new_status: str = Query(..., min_length=2, max_length=50),
-    session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
-) -> LeadResponse:
-    """
-    Update the status of a single lead.
-    """
-    try:
-        statement = select(Lead).where(Lead.id == lead_id)
-        result = await session.execute(statement)
-        lead = result.scalar_one_or_none()
-
-        if not lead:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Lead with ID {lead_id} not found",
-            )
-
-        lead.status = new_status.strip().lower()
-        await session.commit()
-        await session.refresh(lead)
-
-        return LeadResponse.model_validate(lead)
-
-    except HTTPException:
-        raise
+            result = await session.execute(stmt)
+            count = int(result.scalar() or 0)
+        return {"count": count}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update lead status",
-        )
+            detail="Failed to retrieve new leads count",
+        ) from e
 
 
 @router.get(
     "/v1/leads/stats",
     summary="Get lead statistics",
-    description="Comprehensive statistics with conversion rates, trends, source performance, and actionable insights. PROTECTED - requires staff authentication."
+    description="Comprehensive statistics with conversion rates, trends, source performance. PROTECTED - requires authentication."
 )
 async def get_lead_stats(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(require_role("admin", "manager", "counselor")),
+    current_user = Depends(require_role("admin", "user")),
 ):
     """
     Return comprehensive statistics for leads with conversion metrics, trends, and performance data.
+    Admins see all leads; approved users see stats for unassigned leads or leads assigned to them.
     """
     try:
         from datetime import datetime, timedelta
         
+        is_admin = type(current_user).__name__ == "Admin"
         statement = select(Lead)
+        if not is_admin:
+            statement = statement.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
         result = await session.execute(statement)
         leads = result.scalars().all()
 
@@ -448,4 +445,126 @@ async def get_lead_stats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve lead statistics: {str(e)}",
         )
+
+
+@router.get(
+    "/v1/leads/{lead_id}",
+    response_model=LeadResponse,
+    summary="Get single lead",
+    description="Retrieve a specific lead by ID. PROTECTED - requires staff authentication."
+)
+async def get_lead(
+    lead_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(require_role("admin", "user"))
+) -> LeadResponse:
+    """
+    Get a single lead by ID (protected).
+    
+    Admins can access any lead; users can only access their own.
+    """
+    # #region agent log
+    _debug_log("app/routes/leads.py:145", "GET /api/v1/leads/{lead_id} called", {"lead_id": lead_id, "user_id": current_user.id}, "C")
+    # #endregion
+    
+    try:
+        is_admin = type(current_user).__name__ == "Admin"
+        statement = select(Lead).where(Lead.id == lead_id)
+        
+        if not is_admin:
+            statement = statement.where(Lead.user_id == current_user.id)
+        
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+        
+        if not lead:
+            # #region agent log
+            _debug_log("app/routes/leads.py:152", "Lead not found", {"lead_id": lead_id}, "C")
+            # #endregion
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found"
+            )
+        
+        # #region agent log
+        _debug_log("app/routes/leads.py:158", "Lead retrieved successfully", {"lead_id": lead.id}, "C")
+        # #endregion
+        
+        return LeadResponse.model_validate(lead)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        # #region agent log
+        _debug_log("app/routes/leads.py:164", "Error retrieving lead", {"lead_id": lead_id, "error_type": type(e).__name__, "error": str(e)}, "C")
+        # #endregion
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve lead"
+        )
+
+
+@router.patch(
+    "/v1/leads/{lead_id}/status",
+    summary="Update lead status",
+    description="Update the status of a lead with optimistic locking for concurrency safety. PROTECTED - requires staff authentication."
+)
+async def update_lead_status(
+    lead_id: int,
+    new_status: str = Query(..., min_length=2, max_length=50),
+    version: int = Query(..., ge=0, description="Current version for optimistic locking"),
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(require_role("admin", "user")),
+) -> LeadResponse:
+    """
+    Update the status of a single lead with optimistic locking.
+    
+    Requires version parameter to prevent concurrent update conflicts.
+    """
+    try:
+        is_admin = type(current_user).__name__ == "Admin"
+        statement = select(Lead).where(Lead.id == lead_id)
+        
+        if not is_admin:
+            statement = statement.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
+        
+        result = await session.execute(statement)
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lead with ID {lead_id} not found",
+            )
+        
+        # Optimistic locking: check version matches
+        if lead.version != version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lead was modified by another user. Please refresh and try again.",
+            )
+
+        lead.status = new_status.strip().lower()
+        lead.version += 1
+        
+        # Use transaction for atomic update
+        async with session.begin_nested():
+            session.add(lead)
+            await session.commit()
+        
+        await session.refresh(lead)
+        invalidate("new_leads")
+
+        return LeadResponse.model_validate(lead)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update lead status",
+        )
+
 
