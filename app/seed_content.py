@@ -50,7 +50,7 @@ CTA_TRUST = ["Free consultation", "No obligation", "98% visa success"]
 HERO_STATS = [("15K+", "Students"), ("98%", "Visa Success"), ("4.9", "Rating")]
 
 SITE_COPY = {
-    "hero_badge": "50+ Countries • 200+ Universities",
+    "hero_badge": "Hitting Those Top 150 Universities!",
     "hero_headline_1": "Your Next Chapter",
     "hero_headline_2": "Starts Abroad",
     "hero_description": "Discover world-class education and life-changing adventures. We help thousands of students find the right program and make their study abroad dreams a reality.",

@@ -1,5 +1,4 @@
 import React, { useState } from "react"
-import { Link } from "react-router-dom"
 import { ArrowUpRight } from "lucide-react"
 import { useContent } from "../context/ContentContext"
 
@@ -101,17 +100,6 @@ const DestinationsSection = () => {
               </div>
             )
           })}
-        </div>
-
-        {/* View All Link */}
-        <div className="mt-10 md:mt-12 text-center">
-          <Link
-            to="/apply"
-            className="inline-flex items-center gap-2 text-coral font-semibold hover:gap-4 transition-all duration-300 group"
-          >
-            Explore All 50+ Destinations
-            <ArrowUpRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </Link>
         </div>
       </div>
     </section>

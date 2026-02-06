@@ -28,7 +28,11 @@ const Header = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-coral transition-colors group">
+          <Link
+            to="/"
+            onClick={() => window.scrollTo(0, 0)}
+            className="flex items-center gap-2 text-foreground hover:text-coral transition-colors group"
+          >
             <Plane className="w-7 h-7 text-coral transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
             <span className="font-display font-bold text-xl">AllAbroad</span>
           </Link>

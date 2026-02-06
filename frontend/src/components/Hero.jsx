@@ -45,7 +45,7 @@ const Hero = () => {
           <div className="space-y-6 md:space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-coral/10 rounded-full text-coral font-medium text-sm animate-fade-up">
               <MapPin size={16} aria-hidden />
-              <span>{copy.hero_badge ?? "50+ Countries • 200+ Universities"}</span>
+              <span>Hitting Those Top 150 Universities!</span>
             </div>
 
             <h1 className="font-display text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight animate-fade-up animation-delay-200">
