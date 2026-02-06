@@ -567,7 +567,7 @@ async def get_messages(
     statement = select(Message).where(Message.student_id == student.id)
     if unread_only:
         statement = statement.where(Message.is_read == False)
-    statement = statement.order_by(Message.created_at.desc())
+    statement = statement.order_by(Message.created_at.asc())  # Chronological order (oldest first) for chat view
     result = await session.execute(statement)
     return [MessageResponse.model_validate(m) for m in result.scalars()]
 

@@ -157,7 +157,7 @@ function LeadsTable({
           <tbody>
             {leads.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '1.5rem' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '1.5rem', color: '#9ca3af' }}>
                   No leads yet.
                 </td>
               </tr>
@@ -934,12 +934,19 @@ export function AdminLeadsPage() {
   })
 
   return (
-    <div>
-      <header className="admin-header">
-        <h1>Leads</h1>
-        <p>View and manage all study abroad leads.</p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Leads</h1>
+        <p style={{ color: '#9ca3af' }}>View and manage all study abroad leads.</p>
       </header>
-      {error && <div className="admin-alert">{error}</div>}
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {loading && <div className="admin-loading">Loading leads...</div>}
       {!loading && (
         <LeadsTable
@@ -1027,12 +1034,19 @@ export function AdminKanbanPage() {
   })
 
   return (
-    <div>
-      <header className="admin-header">
-        <h1>Kanban Board</h1>
-        <p>Drag and drop leads to change status.</p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Kanban Board</h1>
+        <p style={{ color: '#9ca3af' }}>Drag and drop leads to change status.</p>
       </header>
-      {error && <div className="admin-alert">{error}</div>}
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {loading && <div className="admin-loading">Loading leads...</div>}
       {!loading && (
         <>
@@ -1084,12 +1098,19 @@ export function AdminStatsPage() {
   }, [])
 
   return (
-    <div>
-      <header className="admin-header">
-        <h1>Statistics</h1>
-        <p>Key performance indicators and analytics.</p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Statistics</h1>
+        <p style={{ color: '#9ca3af' }}>Key performance indicators and analytics.</p>
       </header>
-      {error && <div className="admin-alert">{error}</div>}
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {loading && <div className="admin-loading">Loading stats...</div>}
       {!loading && <StatsView stats={stats} />}
     </div>
@@ -1221,12 +1242,19 @@ export function AdminProfilePage() {
   const deleteConfirmValid = deleteConfirm === 'DELETE'
 
   return (
-    <div>
-      <header className="admin-header">
-        <h1>Profile</h1>
-        <p>Manage your account: change password or delete your profile.</p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Profile</h1>
+        <p style={{ color: '#9ca3af' }}>Manage your account: change password or delete your profile.</p>
       </header>
-      {error && <div className="admin-alert">{error}</div>}
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       {loading && <div className="admin-loading">Loading profile...</div>}
 
       {!loading && profile && (
@@ -1409,14 +1437,26 @@ export function AdminApprovalsPage() {
   }, [role])
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <h3>Approve Users</h3>
-        <span className="panel-subtitle">Review pending signups and approve or reject.</span>
-      </div>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Approve Users</h1>
+        <p style={{ color: '#9ca3af' }}>Review pending signups and approve or reject.</p>
+      </header>
+      <div className="panel">
+        <div className="panel-header">
+          <h3>Pending Users</h3>
+          <span className="panel-subtitle">Review pending signups and approve or reject.</span>
+        </div>
 
-      {error && <div className="admin-alert">{error}</div>}
-      {loading && <div className="admin-loading">Loading pending users...</div>}
+        {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+        {loading && <div className="admin-loading">Loading pending users...</div>}
 
       {!loading && pendingUsers.length === 0 && (
         <div className="admin-loading">No pending users right now.</div>
@@ -1463,6 +1503,7 @@ export function AdminApprovalsPage() {
           </table>
         </div>
       )}
+      </div>
     </div>
   )
 }
@@ -1534,17 +1575,24 @@ export function AdminUsersPage() {
   if (role !== 'admin') return <Navigate to="/admin/dashboard" replace />
 
   return (
-    <div>
-      <header className="admin-header">
-        <h1>Approved Users</h1>
-        <p>Deactivate or delete approved users. Deactivated users cannot sign in until reactivated; deleted users are removed permanently.</p>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Approved Users</h1>
+        <p style={{ color: '#9ca3af' }}>Deactivate or delete approved users. Deactivated users cannot sign in until reactivated; deleted users are removed permanently.</p>
       </header>
+      {error && <div className="admin-alert admin-alert-error" style={{ marginBottom: '1rem' }}>{error}</div>}
       <div className="panel">
         <div className="panel-header">
           <h3>Users</h3>
           <span className="panel-subtitle">Manage approved staff accounts</span>
         </div>
-        {error && <div className="admin-alert">{error}</div>}
         {loading && <div className="admin-loading">Loading users...</div>}
         {!loading && users.length === 0 && (
           <div className="admin-loading">No approved users.</div>
@@ -1596,6 +1644,515 @@ export function AdminUsersPage() {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// Format message timestamp nicely
+function formatMessageTime(dateString) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  // Just now (less than 1 minute)
+  if (diffMins < 1) return 'Just now'
+  
+  // Minutes ago (less than 1 hour)
+  if (diffMins < 60) return `${diffMins}m ago`
+  
+  // Hours ago (less than 24 hours)
+  if (diffHours < 24) return `${diffHours}h ago`
+  
+  // Today - show time only
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  // Yesterday
+  if (diffDays === 1) return 'Yesterday'
+  
+  // This week - show day and time
+  if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  // Older - show date and time
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+// Admin Messages Page
+export function AdminMessagesPage() {
+  const { token } = useAuth()
+  const [conversations, setConversations] = useState([])
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [messagesLoading, setMessagesLoading] = useState(false)
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+
+  useEffect(() => {
+    fetchConversations()
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchConversations()
+        if (selectedStudent) {
+          fetchMessages(selectedStudent.student_id)
+        }
+      }
+    }, 5000) // Poll every 5 seconds
+    return () => clearInterval(interval)
+  }, [token, selectedStudent])
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/messages/conversations`, {
+        headers: { ...authHeaders },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const updatedConversations = data.conversations || []
+        setConversations(updatedConversations)
+        // Update selected student if it exists
+        if (selectedStudent) {
+          const updated = updatedConversations.find(c => c.student_id === selectedStudent.student_id)
+          if (updated) {
+            setSelectedStudent(updated)
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchMessages = async (studentId) => {
+    if (!studentId) return
+    setMessagesLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/admin/messages/student/${studentId}`, {
+        headers: { ...authHeaders },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(data)
+        // Mark all as read when viewing
+        await markAllAsRead(studentId)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setMessagesLoading(false)
+    }
+  }
+
+  const markAllAsRead = async (studentId) => {
+    try {
+      await fetch(`${API_BASE}/admin/messages/student/${studentId}/mark-all-read`, {
+        method: 'PATCH',
+        headers: { ...authHeaders },
+      })
+      // Immediately update the selected student's unread count to 0
+      if (selectedStudent && selectedStudent.student_id === studentId) {
+        setSelectedStudent({ ...selectedStudent, unread_count: 0 })
+      }
+      // Update conversations list
+      setConversations(prev => prev.map(conv => 
+        conv.student_id === studentId 
+          ? { ...conv, unread_count: 0 }
+          : conv
+      ))
+      // Trigger unread count refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('messagesRead'))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleSelectStudent = (student) => {
+    // Immediately clear the badge when clicking (optimistic update)
+    setSelectedStudent({ ...student, unread_count: 0 })
+    setConversations(prev => prev.map(conv => 
+      conv.student_id === student.student_id 
+        ? { ...conv, unread_count: 0 }
+        : conv
+    ))
+    // Immediately trigger badge update for instant feedback
+    if (student.unread_count > 0) {
+      window.dispatchEvent(new CustomEvent('messagesRead'))
+    }
+    fetchMessages(student.student_id)
+  }
+
+  const handleSend = async (e) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !selectedStudent) return
+
+    setSending(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/admin/messages/student/${selectedStudent.student_id}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ content: newMessage }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to send message')
+      }
+      setNewMessage('')
+      await fetchMessages(selectedStudent.student_id)
+      await fetchConversations()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div style={{ 
+      height: 'calc(100vh - 120px)', 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#e0e7ff' }}>Messages</h1>
+        <p style={{ color: '#9ca3af' }}>Communicate with students. All admins share the same message thread with each student.</p>
+      </header>
+
+      {error && (
+        <div style={{
+          marginBottom: '1rem',
+          padding: '0.75rem 1rem',
+          borderRadius: '8px',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          color: '#fca5a5'
+        }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ 
+        display: 'flex', 
+        gap: '1rem', 
+        flex: 1,
+        minHeight: 0
+      }}>
+        {/* Conversations List */}
+        <div style={{ 
+          width: '320px', 
+          backgroundColor: '#1a1f3a',
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
+          <div style={{ 
+            padding: '1.25rem', 
+            borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1rem', 
+              fontWeight: 600, 
+              color: '#e0e7ff',
+              letterSpacing: '0.5px'
+            }}>
+              Conversations
+            </h3>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+            ) : conversations.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No conversations yet</div>
+            ) : (
+              conversations.map((conv) => (
+                <div
+                  key={conv.student_id}
+                  onClick={() => handleSelectStudent(conv)}
+                  style={{
+                    padding: '1rem 1.25rem',
+                    borderBottom: '1px solid rgba(99, 102, 241, 0.1)',
+                    cursor: 'pointer',
+                    backgroundColor: selectedStudent?.student_id === conv.student_id 
+                      ? 'rgba(99, 102, 241, 0.2)' 
+                      : 'transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderLeft: selectedStudent?.student_id === conv.student_id 
+                      ? '3px solid #6366f1' 
+                      : '3px solid transparent',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedStudent?.student_id !== conv.student_id) {
+                      e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedStudent?.student_id !== conv.student_id) {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ 
+                      fontWeight: 600, 
+                      marginBottom: '0.25rem',
+                      color: '#e0e7ff',
+                      fontSize: '0.9rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {conv.student_name}
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#9ca3af',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {conv.student_email}
+                    </div>
+                  </div>
+                  {conv.unread_count > 0 && (
+                    <span style={{
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      color: 'white',
+                      borderRadius: '10px',
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      minWidth: '20px',
+                      textAlign: 'center',
+                      marginLeft: '0.5rem',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 4px rgba(239, 68, 68, 0.3)'
+                    }}>
+                      {conv.unread_count > 4 ? '4+' : conv.unread_count}
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Messages Area */}
+        <div style={{ 
+          flex: 1,
+          backgroundColor: '#1a1f3a',
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column',
+          minWidth: 0
+        }}>
+          {!selectedStudent ? (
+            <div style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              color: '#6b7280',
+              flexDirection: 'column',
+              gap: '0.5rem'
+            }}>
+              <div style={{ 
+                fontSize: '4rem', 
+                opacity: 0.2,
+                filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.3))'
+              }}>
+                💬
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: 500, color: '#9ca3af' }}>
+                Select a conversation to view messages
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ 
+                padding: '1.25rem', 
+                borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)'
+              }}>
+                <div style={{ 
+                  fontWeight: 600, 
+                  fontSize: '1rem', 
+                  color: '#e0e7ff', 
+                  marginBottom: '0.25rem' 
+                }}>
+                  {selectedStudent.student_name}
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                  {selectedStudent.student_email}
+                </div>
+              </div>
+              <div style={{ 
+                flex: 1, 
+                overflowY: 'auto', 
+                padding: '1.5rem',
+                background: 'linear-gradient(180deg, #0f172a 0%, #1a1f3a 100%)',
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '1rem'
+              }}>
+                {messagesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>Loading messages...</div>
+                ) : messages.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem', opacity: 0.3 }}>💬</div>
+                    <div>No messages yet. Start the conversation!</div>
+                  </div>
+                ) : (
+                  messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      style={{
+                        alignSelf: msg.sender_type === 'student' ? 'flex-start' : 'flex-end',
+                        maxWidth: '75%',
+                        padding: '0.875rem 1rem',
+                        borderRadius: '12px',
+                        background: msg.sender_type === 'student' 
+                          ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.8) 100%)'
+                          : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        color: msg.sender_type === 'student' ? '#e0e7ff' : 'white',
+                        boxShadow: msg.sender_type === 'student' 
+                          ? '0 2px 8px rgba(0, 0, 0, 0.3)' 
+                          : '0 2px 8px rgba(99, 102, 241, 0.4)',
+                        border: msg.sender_type === 'student' 
+                          ? '1px solid rgba(99, 102, 241, 0.2)' 
+                          : 'none',
+                      }}
+                    >
+                      <div style={{ 
+                        fontSize: '0.7rem', 
+                        marginBottom: '0.5rem', 
+                        opacity: 0.8, 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                      }}>
+                        <span style={{ fontWeight: 500 }}>
+                          {msg.sender_type === 'student' ? selectedStudent.student_name : 'You'}
+                        </span>
+                        <span style={{ whiteSpace: 'nowrap', opacity: 0.7 }}>
+                          {formatMessageTime(msg.created_at)}
+                        </span>
+                      </div>
+                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5', wordBreak: 'break-word' }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <form 
+                onSubmit={handleSend} 
+                style={{ 
+                  padding: '1.25rem', 
+                  borderTop: '1px solid rgba(99, 102, 241, 0.2)',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                  display: 'flex', 
+                  gap: '0.75rem',
+                  alignItems: 'flex-end'
+                }}
+              >
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  rows={2}
+                  style={{ 
+                    flex: 1, 
+                    padding: '0.75rem', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)', 
+                    borderRadius: '8px', 
+                    resize: 'none',
+                    fontSize: '0.9rem',
+                    fontFamily: 'inherit',
+                    lineHeight: '1.5',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e0e7ff',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#6366f1'
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSend(e)
+                    }
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !newMessage.trim()}
+                  style={{ 
+                    padding: '0.75rem 1.5rem', 
+                    background: sending || !newMessage.trim() 
+                      ? 'linear-gradient(135deg, #374151 0%, #4b5563 100%)'
+                      : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: sending || !newMessage.trim() 
+                      ? 'none'
+                      : '0 2px 8px rgba(99, 102, 241, 0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!sending && newMessage.trim()) {
+                      e.currentTarget.style.transform = 'translateY(-1px)'
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.4)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!sending && newMessage.trim()) {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.3)'
+                    }
+                  }}
+                >
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
+              </form>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1670,6 +2227,90 @@ function PendingCountProvider({ children }) {
       {children}
     </PendingCountContext.Provider>
   )
+}
+
+// --- Unread messages count: track unread messages from students
+const UnreadMessagesCountContext = createContext({
+  unreadCount: 0,
+})
+
+function UnreadMessagesCountProvider({ children }) {
+  const { token, role } = useAuth()
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [unchangedPolls, setUnchangedPolls] = useState(0)
+  const mountedRef = useRef(true)
+  const prevCountRef = useRef(undefined)
+  const intervalMs = unchangedPolls >= 2 ? 30000 : 15000
+
+  const fetchCount = useCallback(async () => {
+    if (role !== 'admin') {
+      setUnreadCount(0)
+      return
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/messages/unread-count`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const n = Number(data?.count || 0)
+      if (mountedRef.current) {
+        setUnreadCount(n)
+        if (prevCountRef.current !== undefined && n === prevCountRef.current) {
+          setUnchangedPolls((p) => p + 1)
+        } else {
+          setUnchangedPolls(0)
+        }
+        prevCountRef.current = n
+      }
+    } catch (_) {
+      // silent
+    }
+  }, [token, role])
+
+  useEffect(() => {
+    mountedRef.current = true
+    fetchCount()
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchCount()
+    }, intervalMs)
+    return () => {
+      mountedRef.current = false
+      clearInterval(id)
+    }
+  }, [fetchCount, intervalMs])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        setUnchangedPolls(0)
+        fetchCount()
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [fetchCount])
+
+  useEffect(() => {
+    const onMessagesRead = () => {
+      // Immediately refresh count when messages are marked as read
+      fetchCount()
+    }
+    window.addEventListener('messagesRead', onMessagesRead)
+    return () => window.removeEventListener('messagesRead', onMessagesRead)
+  }, [fetchCount])
+
+  return (
+    <UnreadMessagesCountContext.Provider value={{ unreadCount }}>
+      {children}
+    </UnreadMessagesCountContext.Provider>
+  )
+}
+
+function UnreadMessagesBadge() {
+  const { unreadCount } = useContext(UnreadMessagesCountContext)
+  if (unreadCount === 0) return null
+  return <span className="nav-badge">{unreadCount > 4 ? '4+' : unreadCount}</span>
 }
 
 // --- New leads count: track lastSeen when on Leads Table so we don't show badge when nothing new
@@ -1790,6 +2431,7 @@ export default function AdminDashboard() {
   return (
     <PendingCountProvider>
       <NewLeadsCountProvider>
+        <UnreadMessagesCountProvider>
         <div className="admin-shell">
           <aside className="admin-sidebar">
         <div className="sidebar-logo">AllAbroad Admin</div>
@@ -1829,6 +2471,12 @@ export default function AdminDashboard() {
               Approved Users
             </NavLink>
           )}
+          <NavLink
+            to="/admin/dashboard/messages"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            <span className="nav-text-with-badge">Messages <UnreadMessagesBadge /></span>
+          </NavLink>
         </nav>
         <div className="sidebar-bottom">
           <NavLink
@@ -1848,6 +2496,7 @@ export default function AdminDashboard() {
         </div>
       </main>
         </div>
+        </UnreadMessagesCountProvider>
       </NewLeadsCountProvider>
     </PendingCountProvider>
   )

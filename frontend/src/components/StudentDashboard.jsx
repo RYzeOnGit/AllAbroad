@@ -985,6 +985,41 @@ function ComparisonPage() {
   )
 }
 
+// Format message timestamp nicely
+function formatMessageTime(dateString) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  // Just now (less than 1 minute)
+  if (diffMins < 1) return 'Just now'
+  
+  // Minutes ago (less than 1 hour)
+  if (diffMins < 60) return `${diffMins}m ago`
+  
+  // Hours ago (less than 24 hours)
+  if (diffHours < 24) return `${diffHours}h ago`
+  
+  // Today - show time only
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  // Yesterday
+  if (diffDays === 1) return 'Yesterday'
+  
+  // This week - show day and time
+  if (diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+  
+  // Older - show date and time
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
 // Messages Page
 function MessagesPage() {
   const { token } = useAuth()
@@ -1054,7 +1089,7 @@ function MessagesPage() {
     <div className="student-page">
       <header className="student-header">
         <h1>Messages</h1>
-        <p>Chat with your counselor and AI assistant</p>
+        <p>Chat with your counselor</p>
       </header>
 
       <div className="messages-container">
@@ -1073,7 +1108,7 @@ function MessagesPage() {
                 <div className="message-header">
                   <strong>{msg.sender_type === 'student' ? 'You' : msg.sender_type === 'ai' ? 'AI Assistant' : 'Counselor'}</strong>
                   <span className="message-time">
-                    {new Date(msg.created_at).toLocaleString()}
+                    {formatMessageTime(msg.created_at)}
                   </span>
                 </div>
                 <div className="message-content">{msg.content}</div>
