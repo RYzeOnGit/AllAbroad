@@ -8,8 +8,8 @@ const GRADIENTS_BY_CODE = {
   AU: "linear-gradient(135deg, #f4a261 0%, #e76f51 100%)",
   CA: "linear-gradient(135deg, #d62828 0%, #003049 100%)",
   DE: "linear-gradient(135deg, #2d3436 0%, #636e72 100%)",
-  JP: "linear-gradient(135deg, #ff6b6b 0%, #feca57 100%)",
-  NL: "linear-gradient(135deg, #ff7f50 0%, #ff6348 100%)",
+  US: "linear-gradient(135deg, #3c3b6e 0%, #1a1a2e 100%)",
+  NZ: "linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%)",
 }
 const DEFAULT_GRADIENT = "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)"
 
@@ -48,11 +48,9 @@ const DestinationsSection = () => {
             const id = d.id ?? d.country
             const programCount = Array.isArray(d.programs) ? d.programs.length : 0
             return (
-              <Link
+              <div
                 key={id}
-                to="/apply"
-                className="group relative rounded-2xl md:rounded-3xl overflow-hidden cursor-pointer transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl block"
-                style={{ animationDelay: `${index * 100}ms` }}
+                className="group relative rounded-2xl md:rounded-3xl overflow-hidden cursor-default transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl block"
                 onMouseEnter={() => setHoveredId(id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
@@ -100,7 +98,7 @@ const DestinationsSection = () => {
                     hoveredId === id ? "opacity-100" : "opacity-0"
                   }`}
                 />
-              </Link>
+              </div>
             )
           })}
         </div>

@@ -24,8 +24,8 @@ DESTINATIONS = [
     ("Australia", "AU", "🇦🇺", "Sydney, Melbourne, Brisbane", "Undergraduate, Postgraduate, Research", "from-teal-800 to-slate-800", "coral"),
     ("Canada", "CA", "🇨🇦", "Toronto, Vancouver, Montreal", "Undergraduate, Postgraduate, Co-op", "from-rose-900 to-slate-800", "coral"),
     ("Germany", "DE", "🇩🇪", "Berlin, Munich, Frankfurt", "Undergraduate, Postgraduate, STEM", "from-amber-900/90 to-slate-800", "coral"),
-    ("Japan", "JP", "🇯🇵", "Tokyo, Kyoto, Osaka", "Undergraduate, Postgraduate, Language", "from-rose-800 to-slate-800", "coral"),
-    ("Netherlands", "NL", "🇳🇱", "Amsterdam, Rotterdam, Utrecht", "Undergraduate, Postgraduate, English-taught", "from-orange-900/80 to-slate-800", "coral"),
+    ("United States", "US", "🇺🇸", "New York, Boston, Los Angeles", "Undergraduate, Postgraduate, MBA", "from-indigo-900 to-slate-800", "coral"),
+    ("New Zealand", "NZ", "🇳🇿", "Auckland, Wellington, Christchurch", "Undergraduate, Postgraduate, Research", "from-emerald-900 to-slate-800", "coral"),
 ]
 
 # (quote, name, detail, rating, image_emoji). image can be "" for default GraduationCap icon.

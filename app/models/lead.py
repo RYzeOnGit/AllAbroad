@@ -12,7 +12,7 @@ class Lead(SQLModel, table=True):
     
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255, index=False)
-    phone: str = Field(max_length=50, index=True, unique=True)
+    email: str = Field(max_length=255, index=True, unique=True)
     country: str = Field(max_length=100, index=False)
     target_country: str = Field(max_length=100, index=False)
     intake: str = Field(max_length=50, index=False)  # e.g., "Fall 2024", "Spring 2025"

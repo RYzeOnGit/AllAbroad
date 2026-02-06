@@ -30,4 +30,5 @@ CURRENCIES = (
     "EUR",
     "INR",
     "GBP",
+    "AED",
 )

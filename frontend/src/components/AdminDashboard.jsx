@@ -102,7 +102,7 @@ function LeadsTable({
         <input
           type="text"
           className="admin-search-input admin-filters-search"
-          placeholder="Search by name, phone, country, target country, degree, subject, or source..."
+          placeholder="Search by name, email, country, target country, degree, subject, or source..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -144,7 +144,7 @@ function LeadsTable({
             <tr>
               <th>ID</th>
               <th>Name</th>
-              <th>Phone</th>
+              <th>Email</th>
               <th>From → To</th>
               <th>Intake</th>
               <th>Degree</th>
@@ -166,7 +166,7 @@ function LeadsTable({
               <tr key={lead.id}>
                 <td>{lead.id}</td>
                 <td>{lead.name}</td>
-                <td>{lead.phone}</td>
+                <td>{lead.email}</td>
                 <td>
                   {lead.country} → {lead.target_country}
                 </td>
@@ -920,7 +920,7 @@ export function AdminLeadsPage() {
     if (!normalizedSearch) return true
     const haystack = [
       lead.name,
-      lead.phone,
+      lead.email,
       lead.country,
       lead.target_country,
       lead.degree,
@@ -1013,7 +1013,7 @@ export function AdminKanbanPage() {
     if (!normalizedSearch) return true
     const haystack = [
       lead.name,
-      lead.phone,
+      lead.email,
       lead.country,
       lead.target_country,
       lead.degree,

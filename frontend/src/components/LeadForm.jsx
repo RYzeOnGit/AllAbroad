@@ -2,6 +2,30 @@ import React, { useState } from "react"
 import apiClient from "../api/client"
 import { DEGREES, SUBJECTS, CURRENCIES } from "../constants/leadOptions"
 
+/** Validate email format (client-side only; no Resend). */
+function isValidEmail(value) {
+  if (value == null || String(value).trim() === "") return false
+  const s = String(value).trim().toLowerCase()
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(s)
+}
+
+/** Parse budget string (allows commas) to number. */
+function parseBudget(value) {
+  if (value == null || String(value).trim() === "") return null
+  const n = Number(String(value).replace(/,/g, "").trim())
+  return Number.isNaN(n) ? null : n
+}
+
+/** Format number with commas for display (e.g. 20000 -> "20,000"). */
+function formatBudgetDisplay(value) {
+  if (value == null || value === "") return ""
+  const s = String(value).replace(/,/g, "").trim()
+  if (s === "") return ""
+  const n = Number(s)
+  if (Number.isNaN(n)) return value
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 })
+}
+
 const SectionLabel = ({ children }) => (
   <p className="text-coral font-semibold text-xs uppercase tracking-wider mb-4 mt-6 first:mt-0">
     {children}
@@ -11,7 +35,7 @@ const SectionLabel = ({ children }) => (
 const LeadForm = () => {
   const [formData, setFormData] = useState({
     name: "",
-    phone: "",
+    email: "",
     country: "",
     target_country: "",
     intake: "",
@@ -27,7 +51,24 @@ const LeadForm = () => {
   const [message, setMessage] = useState({ type: "", text: "" })
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    if (name === "budget_min" || name === "budget_max") {
+      const allowed = value.replace(/[^0-9,]/g, "")
+      setFormData({ ...formData, [name]: allowed })
+      return
+    }
+    setFormData({ ...formData, [name]: value })
+  }
+
+  const handleBudgetBlur = (e) => {
+    const { name } = e.target
+    if (name !== "budget_min" && name !== "budget_max") return
+    const raw = formData[name].replace(/,/g, "").trim()
+    if (raw === "") return
+    const n = Number(raw)
+    if (!Number.isNaN(n) && n >= 0) {
+      setFormData({ ...formData, [name]: formatBudgetDisplay(n) })
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -40,8 +81,20 @@ const LeadForm = () => {
       setLoading(false)
       return
     }
-    const minVal = formData.budget_min === "" ? null : Math.floor(Number(formData.budget_min))
-    const maxVal = formData.budget_max === "" ? null : Math.floor(Number(formData.budget_max))
+    if (!formData.email?.trim()) {
+      setMessage({ type: "error", text: "Please enter your email address." })
+      setLoading(false)
+      return
+    }
+    if (!isValidEmail(formData.email)) {
+      setMessage({ type: "error", text: "Please enter a valid email address (e.g. name@example.com)." })
+      setLoading(false)
+      return
+    }
+    const minValRaw = parseBudget(formData.budget_min)
+    const maxValRaw = parseBudget(formData.budget_max)
+    const minVal = minValRaw == null ? null : Math.floor(minValRaw)
+    const maxVal = maxValRaw == null ? null : Math.floor(maxValRaw)
     if (minVal == null && maxVal == null) {
       setMessage({ type: "error", text: "Please enter at least a minimum or maximum tuition amount." })
       setLoading(false)
@@ -65,7 +118,7 @@ const LeadForm = () => {
 
     const payload = {
       name: formData.name,
-      phone: formData.phone,
+      email: formData.email.trim().toLowerCase(),
       country: formData.country,
       target_country: formData.target_country,
       intake: formData.intake,
@@ -83,7 +136,7 @@ const LeadForm = () => {
       setMessage({ type: "success", text: "Thank you! We'll be in touch soon." })
       setFormData({
         name: "",
-        phone: "",
+        email: "",
         country: "",
         target_country: "",
         intake: "",
@@ -138,17 +191,19 @@ const LeadForm = () => {
             />
           </div>
           <div>
-            <label htmlFor="phone" className={labelClass}>Phone Number *</label>
+            <label htmlFor="email" className={labelClass}>Email *</label>
             <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
               onChange={handleChange}
               required
-              placeholder="+1 (123) 456-7890"
+              placeholder="name@example.com"
+              autoComplete="email"
               className={inputClass}
             />
+            <p className="text-sm text-muted-foreground mt-1">We’ll contact you at this address. No verification email sent.</p>
           </div>
         </div>
 

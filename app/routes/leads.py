@@ -44,29 +44,29 @@ async def create_lead(
     """
     Create a new lead.
     
-    Validates input, normalizes phone number, checks for duplicates,
+    Validates input, validates email format, checks for duplicates,
     and stores the lead in the database.
     """
     # #region agent log
     _debug_log("app/routes/leads.py:20", "POST /api/leads endpoint called", {"path": str(request.url), "method": request.method, "client": str(request.client)}, "C")
-    _debug_log("app/routes/leads.py:20", "Lead data received", {"name": lead_data.name, "phone": lead_data.phone, "country": lead_data.country}, "C")
+    _debug_log("app/routes/leads.py:20", "Lead data received", {"name": lead_data.name, "email": lead_data.email, "country": lead_data.country}, "C")
     # #endregion
     try:
-        # Validate and normalize phone number
-        normalized_name, normalized_phone = validate_lead_data(
+        # Validate and normalize email (format only; no Resend/automated verification)
+        normalized_name, normalized_email = validate_lead_data(
             lead_data.name,
-            lead_data.phone
+            lead_data.email
         )
         
-        # Check for duplicate phone number
-        statement = select(Lead).where(Lead.phone == normalized_phone)
+        # Check for duplicate email
+        statement = select(Lead).where(Lead.email == normalized_email)
         result = await session.execute(statement)
         existing_lead = result.scalar_one_or_none()
         
         if existing_lead:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Lead with phone number {normalized_phone} already exists"
+                detail="A lead with this email address already exists"
             )
         
         # Resolve subject: use subject_other when subject is "Other"
@@ -79,7 +79,7 @@ async def create_lead(
         # Create new lead
         new_lead = Lead(
             name=normalized_name,
-            phone=normalized_phone,
+            email=normalized_email,
             country=lead_data.country.strip(),
             target_country=lead_data.target_country.strip(),
             intake=lead_data.intake.strip(),
@@ -160,12 +160,14 @@ async def get_leads(
     # #endregion
 
     try:
-        # Admins see all leads; users see only their leads
+        # Admins see all leads; approved users see unassigned leads (user_id IS NULL) or leads assigned to them
         is_admin = type(current_user).__name__ == "Admin"
         base_query = select(Lead)
         
         if not is_admin:
-            base_query = base_query.where(Lead.user_id == current_user.id)
+            base_query = base_query.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
         
         if status_filter:
             base_query = base_query.where(Lead.status == status_filter)
@@ -248,7 +250,11 @@ async def get_new_leads_count(
                 return int(r.scalar() or 0)
             count = await get_cached("new_leads", _fetch(), ttl=5)
         else:
-            stmt = select(func.count(Lead.id)).where(Lead.status == "new").where(Lead.user_id == current_user.id)
+            stmt = (
+                select(func.count(Lead.id))
+                .where(Lead.status == "new")
+                .where(or_(Lead.user_id.is_(None), Lead.user_id == current_user.id))
+            )
             result = await session.execute(stmt)
             count = int(result.scalar() or 0)
         return {"count": count}
@@ -270,11 +276,17 @@ async def get_lead_stats(
 ):
     """
     Return comprehensive statistics for leads with conversion metrics, trends, and performance data.
+    Admins see all leads; approved users see stats for unassigned leads or leads assigned to them.
     """
     try:
         from datetime import datetime, timedelta
         
+        is_admin = type(current_user).__name__ == "Admin"
         statement = select(Lead)
+        if not is_admin:
+            statement = statement.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
         result = await session.execute(statement)
         leads = result.scalars().all()
 
@@ -514,7 +526,9 @@ async def update_lead_status(
         statement = select(Lead).where(Lead.id == lead_id)
         
         if not is_admin:
-            statement = statement.where(Lead.user_id == current_user.id)
+            statement = statement.where(
+                or_(Lead.user_id.is_(None), Lead.user_id == current_user.id)
+            )
         
         result = await session.execute(statement)
         lead = result.scalar_one_or_none()

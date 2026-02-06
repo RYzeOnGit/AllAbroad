@@ -1,5 +1,5 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Hero from './components/Hero'
 import DestinationsSection from './components/DestinationsSection'
@@ -36,6 +36,14 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  return null
+}
+
 function PublicLayout() {
   return (
     <div className="App">
@@ -56,6 +64,7 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <ContentProvider>
+            <ScrollToTop />
             <Routes>
             <Route path="/" element={<PublicLayout />} />
           <Route path="/apply" element={<ApplyPage />} />

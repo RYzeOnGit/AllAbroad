@@ -11,7 +11,7 @@ class LeadCreate(BaseModel):
     """Schema for creating a new lead."""
     
     name: str = Field(..., min_length=2, max_length=255, description="Full name of the lead")
-    phone: str = Field(..., min_length=5, max_length=50, description="Phone number")
+    email: str = Field(..., min_length=5, max_length=255, description="Email address")
     country: str = Field(..., min_length=2, max_length=100, description="Lead's current country")
     target_country: str = Field(..., min_length=2, max_length=100, description="Target study destination")
     intake: str = Field(..., min_length=2, max_length=50, description="Intake period (e.g., Fall 2024)")
@@ -68,18 +68,20 @@ class LeadCreate(BaseModel):
         name = re.sub(r"\s+", " ", name)
         return name
     
-    @field_validator("phone")
+    @field_validator("email")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        """Basic phone validation - will be normalized later."""
-        phone = v.strip()
-        if not phone:
-            raise ValueError("Phone number cannot be empty")
-        # Remove common separators for initial validation
-        cleaned = re.sub(r"[\s\-\(\)\.]", "", phone)
-        if len(cleaned) < 5:
-            raise ValueError("Phone number appears too short")
-        return phone
+    def validate_email(cls, v: str) -> str:
+        """Validate email format (format only; no Resend/automated verification)."""
+        email = v.strip().lower()
+        if not email:
+            raise ValueError("Email cannot be empty")
+        if len(email) < 5 or len(email) > 255:
+            raise ValueError("Please enter a valid email address")
+        if "@" not in email or "." not in email.split("@")[-1]:
+            raise ValueError("Please enter a valid email address")
+        if re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email) is None:
+            raise ValueError("Please enter a valid email address")
+        return email
     
     @field_validator("country", "target_country")
     @classmethod
@@ -105,7 +107,7 @@ class LeadResponse(BaseModel):
     
     id: int
     name: str
-    phone: str
+    email: str
     country: str
     target_country: str
     intake: str
