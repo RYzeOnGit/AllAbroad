@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column, DateTime, Relationship
-from sqlalchemy import func, Text
+from sqlalchemy import func, Text, LargeBinary
 
 
 class Student(SQLModel, table=True):
@@ -47,7 +47,8 @@ class Document(SQLModel, table=True):
     student_id: int = Field(foreign_key="students.id", index=True)
     document_type: str = Field(max_length=100, index=True)  # passport, transcript, recommendation, etc.
     file_name: str = Field(max_length=255)
-    file_path: str = Field(max_length=500)
+    file_path: Optional[str] = Field(default=None, max_length=500)  # Legacy field, kept for migration compatibility
+    file_content: Optional[bytes] = Field(default=None, sa_column=Column(LargeBinary))  # PDF content stored in DB
     file_size: Optional[int] = None  # bytes
     mime_type: Optional[str] = Field(default=None, max_length=100)
     

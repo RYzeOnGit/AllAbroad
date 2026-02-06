@@ -1,10 +1,9 @@
 """Student portal API endpoints."""
 import json
-import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -27,10 +26,6 @@ from app.utils.auth import get_current_user
 from app.models.user import User
 
 router = APIRouter(prefix="/student", tags=["student"])
-
-# File upload directory
-UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "documents"))
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 async def get_current_student(session: AsyncSession = Depends(get_session), current_user: User = Depends(get_current_user)) -> Student:
@@ -190,10 +185,7 @@ async def upload_document(
     existing_doc = existing_result.scalar_one_or_none()
     
     if existing_doc:
-        # Delete old file
-        if os.path.exists(existing_doc.file_path):
-            os.remove(existing_doc.file_path)
-        # Delete old document record
+        # Delete old document record (file content is in DB, no file to delete)
         await session.delete(existing_doc)
         await session.commit()
     
@@ -201,7 +193,7 @@ async def upload_document(
     if file.content_type != "application/pdf" and not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
-    # Read file content to check size
+    # Read file content to check size and store in DB
     content = await file.read()
     file_size_mb = len(content) / (1024 * 1024)  # Convert to MB
     MAX_FILE_SIZE_MB = 10  # 10MB limit
@@ -212,21 +204,12 @@ async def upload_document(
             detail=f"File size ({file_size_mb:.2f}MB) exceeds maximum allowed size of {MAX_FILE_SIZE_MB}MB"
         )
     
-    # Reset file pointer for saving
-    await file.seek(0)
-    
-    # Save file
-    file_path = os.path.join(UPLOAD_DIR, f"{student.id}_{datetime.utcnow().timestamp()}_{file.filename}")
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    
-    # Create document record
+    # Create document record with file content stored in database
     document = Document(
         student_id=student.id,
         document_type=document_type,
         file_name=file.filename,
-        file_path=file_path,
+        file_content=content,  # Store PDF content in database
         file_size=len(content),
         mime_type=file.content_type or "application/pdf",
         status="pending"
@@ -290,10 +273,6 @@ async def update_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Delete old file
-    if os.path.exists(document.file_path):
-        os.remove(document.file_path)
-    
     # Validate file type and size
     content = await file.read()
     file_size_mb = len(content) / (1024 * 1024)
@@ -308,16 +287,11 @@ async def update_document(
             detail=f"File size ({file_size_mb:.2f}MB) exceeds maximum allowed size of {MAX_FILE_SIZE_MB}MB"
         )
     
-    # Save new file
-    file_path = os.path.join(UPLOAD_DIR, f"{student.id}_{datetime.utcnow().timestamp()}_{file.filename}")
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    # Update document
+    # Update document with new file content stored in database
     document.file_name = file.filename
-    document.file_path = file_path
+    document.file_content = content  # Store PDF content in database
     document.file_size = len(content)
-    document.mime_type = file.content_type
+    document.mime_type = file.content_type or "application/pdf"
     document.status = "pending"  # Reset to pending for review
     
     # Create timeline event
@@ -344,6 +318,8 @@ async def download_document(
     student: Student = Depends(get_current_student)
 ):
     """Download/view a document file."""
+    from fastapi.responses import Response
+    
     statement = select(Document).where(
         Document.id == document_id,
         Document.student_id == student.id
@@ -353,18 +329,18 @@ async def download_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Convert to absolute path if relative
-    file_path = document.file_path
-    if not os.path.isabs(file_path):
-        file_path = os.path.abspath(file_path)
+    # Get file content from database
+    if not document.file_content:
+        raise HTTPException(status_code=404, detail="File content not found")
     
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found on server: {file_path}")
+    file_content = document.file_content
     
-    return FileResponse(
-        path=file_path,
-        filename=document.file_name,
-        media_type="application/pdf"
+    return Response(
+        content=file_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{document.file_name}"'
+        }
     )
 
 
@@ -384,9 +360,7 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Delete file
-    if os.path.exists(document.file_path):
-        os.remove(document.file_path)
+    # File content is stored in DB, no file system operations needed
     
     # Create timeline event
     timeline_event = TimelineEvent(

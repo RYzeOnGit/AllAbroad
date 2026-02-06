@@ -1,9 +1,8 @@
 """Admin-only routes for user approval and management."""
 from datetime import datetime
 from typing import List, Optional
-import os
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -372,18 +371,20 @@ async def download_student_document(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Convert to absolute path if relative
-    file_path = document.file_path
-    if not os.path.isabs(file_path):
-        file_path = os.path.abspath(file_path)
+    from fastapi.responses import Response
     
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found on server: {file_path}")
+    # Get file content from database
+    if not document.file_content:
+        raise HTTPException(status_code=404, detail="File content not found")
     
-    return FileResponse(
-        path=file_path,
-        filename=document.file_name,
-        media_type="application/pdf"
+    file_content = document.file_content
+    
+    return Response(
+        content=file_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{document.file_name}"'
+        }
     )
 
 

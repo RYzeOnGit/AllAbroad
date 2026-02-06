@@ -39,7 +39,7 @@ class DocumentResponse(BaseModel):
     student_id: int
     document_type: str
     file_name: str
-    file_path: str
+    file_path: Optional[str] = None  # Legacy field, kept for compatibility
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
     status: str
@@ -47,6 +47,7 @@ class DocumentResponse(BaseModel):
     uploaded_at: datetime
     reviewed_at: Optional[datetime] = None
     reviewed_by: Optional[int] = None
+    # Note: file_content is excluded from response (binary data, accessed via download endpoint)
     
     class Config:
         from_attributes = True
