@@ -11,7 +11,7 @@ import ApplyPage from './components/ApplyPage'
 import AdminLogin from './components/AdminLogin'
 import SignupForm from './components/SignupForm'
 import SignupStudentPlaceholder from './components/SignupStudentPlaceholder'
-import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage, AdminProfilePage, AdminApprovalsPage, AdminUsersPage, AdminMessagesPage } from './components/AdminDashboard'
+import AdminDashboard, { AdminLeadsPage, AdminKanbanPage, AdminStatsPage, AdminProfilePage, AdminApprovalsPage, AdminUsersPage, AdminMessagesPage, AdminDocumentsPage } from './components/AdminDashboard'
 import NoAccess from './components/NoAccess'
 import ProtectedRoute from './components/ProtectedRoute'
 import StudentDashboard from './components/StudentDashboard'
@@ -86,6 +86,7 @@ function App() {
             <Route path="approvals" element={<AdminApprovalsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="messages" element={<AdminMessagesPage />} />
+            <Route path="documents" element={<AdminDocumentsPage />} />
           </Route>
           <Route path="/admin/no-access" element={<NoAccess />} />
           <Route

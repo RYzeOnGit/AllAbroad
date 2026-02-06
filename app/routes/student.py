@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -28,7 +29,7 @@ from app.models.user import User
 router = APIRouter(prefix="/student", tags=["student"])
 
 # File upload directory
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "documents")
+UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "documents"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -179,7 +180,41 @@ async def upload_document(
     session: AsyncSession = Depends(get_session),
     student: Student = Depends(get_current_student)
 ):
-    """Upload a document."""
+    """Upload a document. If a document of this type already exists, it will be replaced."""
+    # Check if document of this type already exists and delete it
+    existing_stmt = select(Document).where(
+        Document.student_id == student.id,
+        Document.document_type == document_type
+    )
+    existing_result = await session.execute(existing_stmt)
+    existing_doc = existing_result.scalar_one_or_none()
+    
+    if existing_doc:
+        # Delete old file
+        if os.path.exists(existing_doc.file_path):
+            os.remove(existing_doc.file_path)
+        # Delete old document record
+        await session.delete(existing_doc)
+        await session.commit()
+    
+    # Validate file type (only PDFs)
+    if file.content_type != "application/pdf" and not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    # Read file content to check size
+    content = await file.read()
+    file_size_mb = len(content) / (1024 * 1024)  # Convert to MB
+    MAX_FILE_SIZE_MB = 10  # 10MB limit
+    
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File size ({file_size_mb:.2f}MB) exceeds maximum allowed size of {MAX_FILE_SIZE_MB}MB"
+        )
+    
+    # Reset file pointer for saving
+    await file.seek(0)
+    
     # Save file
     file_path = os.path.join(UPLOAD_DIR, f"{student.id}_{datetime.utcnow().timestamp()}_{file.filename}")
     with open(file_path, "wb") as f:
@@ -193,7 +228,7 @@ async def upload_document(
         file_name=file.filename,
         file_path=file_path,
         file_size=len(content),
-        mime_type=file.content_type,
+        mime_type=file.content_type or "application/pdf",
         status="pending"
     )
     session.add(document)
@@ -203,7 +238,7 @@ async def upload_document(
         student_id=student.id,
         event_type="document_upload",
         category="documents",
-        title=f"Uploaded {document_type}",
+        title=f"{'Replaced' if existing_doc else 'Uploaded'} {document_type}",
         description=f"File: {file.filename}",
         related_document_id=None  # Will be set after commit
     )
@@ -259,10 +294,23 @@ async def update_document(
     if os.path.exists(document.file_path):
         os.remove(document.file_path)
     
+    # Validate file type and size
+    content = await file.read()
+    file_size_mb = len(content) / (1024 * 1024)
+    MAX_FILE_SIZE_MB = 10
+    
+    if file.content_type != "application/pdf" and not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File size ({file_size_mb:.2f}MB) exceeds maximum allowed size of {MAX_FILE_SIZE_MB}MB"
+        )
+    
     # Save new file
     file_path = os.path.join(UPLOAD_DIR, f"{student.id}_{datetime.utcnow().timestamp()}_{file.filename}")
     with open(file_path, "wb") as f:
-        content = await file.read()
         f.write(content)
     
     # Update document
@@ -287,6 +335,74 @@ async def update_document(
     await session.refresh(document)
     
     return DocumentResponse.model_validate(document)
+
+
+@router.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: int,
+    session: AsyncSession = Depends(get_session),
+    student: Student = Depends(get_current_student)
+):
+    """Download/view a document file."""
+    statement = select(Document).where(
+        Document.id == document_id,
+        Document.student_id == student.id
+    )
+    result = await session.execute(statement)
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Convert to absolute path if relative
+    file_path = document.file_path
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found on server: {file_path}")
+    
+    return FileResponse(
+        path=file_path,
+        filename=document.file_name,
+        media_type="application/pdf"
+    )
+
+
+@router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: int,
+    session: AsyncSession = Depends(get_session),
+    student: Student = Depends(get_current_student)
+):
+    """Delete a document."""
+    statement = select(Document).where(
+        Document.id == document_id,
+        Document.student_id == student.id
+    )
+    result = await session.execute(statement)
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete file
+    if os.path.exists(document.file_path):
+        os.remove(document.file_path)
+    
+    # Create timeline event
+    timeline_event = TimelineEvent(
+        student_id=student.id,
+        event_type="document_deleted",
+        category="documents",
+        title=f"Deleted {document.document_type}",
+        description=f"File: {document.file_name}",
+        related_document_id=None
+    )
+    session.add(timeline_event)
+    
+    await session.delete(document)
+    await session.commit()
+    
+    return None
 
 
 @router.get("/documents/checklist")
@@ -433,6 +549,79 @@ async def submit_application(
     await session.refresh(application)
     
     return ApplicationResponse.model_validate(application)
+
+
+@router.patch("/applications/{application_id}", response_model=ApplicationResponse)
+async def update_application(
+    application_id: int,
+    application_data: ApplicationUpdate,
+    session: AsyncSession = Depends(get_session),
+    student: Student = Depends(get_current_student)
+):
+    """Update an application."""
+    statement = select(Application).where(
+        Application.id == application_id,
+        Application.student_id == student.id
+    )
+    result = await session.execute(statement)
+    application = result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Update fields
+    update_data = application_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(application, field, value)
+    
+    # Create timeline event if status changed
+    if 'status' in update_data:
+        timeline_event = TimelineEvent(
+            student_id=student.id,
+            event_type="application_updated",
+            category="applications",
+            title=f"Updated application: {application.university_name}",
+            description=f"Status changed to: {update_data['status']}",
+            related_application_id=application.id
+        )
+        session.add(timeline_event)
+    
+    await session.commit()
+    await session.refresh(application)
+    
+    return ApplicationResponse.model_validate(application)
+
+
+@router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_application(
+    application_id: int,
+    session: AsyncSession = Depends(get_session),
+    student: Student = Depends(get_current_student)
+):
+    """Delete an application."""
+    statement = select(Application).where(
+        Application.id == application_id,
+        Application.student_id == student.id
+    )
+    result = await session.execute(statement)
+    application = result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Create timeline event
+    timeline_event = TimelineEvent(
+        student_id=student.id,
+        event_type="application_deleted",
+        category="applications",
+        title=f"Deleted application: {application.university_name}",
+        description=f"Program: {application.program_name}",
+        related_application_id=None
+    )
+    session.add(timeline_event)
+    
+    await session.delete(application)
+    await session.commit()
+    
+    return None
 
 
 # Visa

@@ -83,10 +83,14 @@ class Application(SQLModel, table=True):
     degree_level: str = Field(max_length=50)  # Bachelor's, Master's, PhD
     intake: str = Field(max_length=50)  # Fall 2024, Spring 2025
     
-    status: str = Field(default="draft", max_length=50, index=True)  # draft, submitted, under_review, accepted, rejected, waitlisted
+    status: str = Field(default="draft", max_length=50, index=True)  # draft, submitted, under_review, accepted, rejected, deferred, waitlisted
     application_deadline: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
     decision_date: Optional[datetime] = None
+    
+    # Scholarship information
+    scholarship_amount: Optional[float] = None
+    scholarship_currency: Optional[str] = Field(default=None, max_length=10)
     
     # AI suggestions and notes
     ai_suggestions: Optional[str] = Field(default=None, sa_column=Column(Text))

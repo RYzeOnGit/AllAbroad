@@ -179,6 +179,7 @@ function DocumentsPage() {
   const [uploading, setUploading] = useState(false)
   const [selectedType, setSelectedType] = useState('')
   const [file, setFile] = useState(null)
+  const [replacingDoc, setReplacingDoc] = useState(null)
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
 
@@ -186,6 +187,16 @@ function DocumentsPage() {
     fetchDocuments()
     fetchChecklist()
   }, [token])
+
+  useEffect(() => {
+    // Check if selected type already has a document
+    if (selectedType) {
+      const existing = documents.find(d => d.document_type === selectedType)
+      setReplacingDoc(existing)
+    } else {
+      setReplacingDoc(null)
+    }
+  }, [selectedType, documents])
 
   const fetchDocuments = async () => {
     try {
@@ -220,6 +231,20 @@ function DocumentsPage() {
     e.preventDefault()
     if (!file || !selectedType) return
 
+    // Validate PDF
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are allowed')
+      return
+    }
+
+    // Validate file size (10MB max)
+    const MAX_FILE_SIZE_MB = 10
+    const fileSizeMB = file.size / (1024 * 1024)
+    if (fileSizeMB > MAX_FILE_SIZE_MB) {
+      alert(`File size (${fileSizeMB.toFixed(2)}MB) exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB`)
+      return
+    }
+
     setUploading(true)
     const formData = new FormData()
     formData.append('file', file)
@@ -231,14 +256,92 @@ function DocumentsPage() {
         headers: { ...authHeaders },
         body: formData,
       })
-      if (!res.ok) throw new Error('Upload failed')
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.detail || 'Upload failed')
+      }
       await fetchDocuments()
       await fetchChecklist()
       setFile(null)
       setSelectedType('')
+      setReplacingDoc(null)
       e.target.reset()
     } catch (err) {
       alert('Upload failed: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleDelete = async (docId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return
+    try {
+      const res = await fetch(`${API_BASE}/student/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders },
+      })
+      if (!res.ok) throw new Error('Delete failed')
+      await fetchDocuments()
+      await fetchChecklist()
+    } catch (err) {
+      alert('Delete failed: ' + err.message)
+    }
+  }
+
+  const handleDownload = async (doc) => {
+    try {
+      const res = await fetch(`${API_BASE}/student/documents/${doc.id}/download`, {
+        headers: { ...authHeaders },
+      })
+      if (!res.ok) {
+        throw new Error('Failed to download document')
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      // Open PDF in new tab for viewing
+      window.open(url, '_blank')
+      // Clean up the URL after a delay to allow the browser to load it
+      setTimeout(() => window.URL.revokeObjectURL(url), 100)
+    } catch (err) {
+      alert('Failed to open document: ' + err.message)
+    }
+  }
+
+  const handleReplace = async (doc, newFile) => {
+    if (!newFile) return
+    
+    // Validate PDF
+    if (newFile.type !== 'application/pdf' && !newFile.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are allowed')
+      return
+    }
+
+    // Validate file size (10MB max)
+    const MAX_FILE_SIZE_MB = 10
+    const fileSizeMB = newFile.size / (1024 * 1024)
+    if (fileSizeMB > MAX_FILE_SIZE_MB) {
+      alert(`File size (${fileSizeMB.toFixed(2)}MB) exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB`)
+      return
+    }
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', newFile)
+
+    try {
+      const res = await fetch(`${API_BASE}/student/documents/${doc.id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders },
+        body: formData,
+      })
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.detail || 'Update failed')
+      }
+      await fetchDocuments()
+      await fetchChecklist()
+    } catch (err) {
+      alert('Update failed: ' + err.message)
     } finally {
       setUploading(false)
     }
@@ -264,6 +367,19 @@ function DocumentsPage() {
       {/* Upload Form */}
       <div className="panel">
         <h3>Upload Document</h3>
+        {replacingDoc && (
+          <div style={{
+            padding: '0.75rem',
+            marginBottom: '1rem',
+            borderRadius: '0.5rem',
+            background: '#fef3c7',
+            border: '1px solid #f59e0b',
+            color: '#92400e',
+            fontSize: '0.875rem'
+          }}>
+            ⚠️ A {replacingDoc.document_type.replace(/_/g, ' ')} document already exists. Uploading will replace it.
+          </div>
+        )}
         <form onSubmit={handleUpload} className="upload-form">
           <div className="form-row">
             <select
@@ -284,15 +400,18 @@ function DocumentsPage() {
             </select>
             <input
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf,application/pdf"
               onChange={(e) => setFile(e.target.files[0])}
               required
               className="form-file"
             />
             <button type="submit" disabled={uploading} className="btn-primary">
-              {uploading ? 'Uploading...' : 'Upload'}
+              {uploading ? 'Uploading...' : replacingDoc ? 'Replace' : 'Upload'}
             </button>
           </div>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#64748b' }}>
+            Only PDF files are accepted (max 10MB). One document per type allowed.
+          </p>
         </form>
       </div>
 
@@ -331,30 +450,95 @@ function DocumentsPage() {
         ) : documents.length === 0 ? (
           <p>No documents uploaded yet.</p>
         ) : (
-          <div className="documents-list">
-            {documents.map((doc) => (
-              <div key={doc.id} className="document-card">
-                <div className="document-header">
-                  <h4>{doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</h4>
-                  <span
-                    className="status-badge"
-                    style={{ background: getStatusColor(doc.status), color: '#fff' }}
-                  >
-                    {doc.status}
-                  </span>
-                </div>
-                <p className="document-name">{doc.file_name}</p>
-                {doc.counselor_comment && (
-                  <div className="document-comment">
-                    <strong>Counselor Comment:</strong> {doc.counselor_comment}
-                  </div>
-                )}
-                <div className="document-meta">
-                  <span>Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}</span>
-                  {doc.reviewed_at && (
-                    <span>Reviewed: {new Date(doc.reviewed_at).toLocaleDateString()}</span>
-                  )}
-                </div>
+          <div className="table-wrapper">
+            <table className="applications-table">
+              <thead>
+                <tr>
+                  <th>Document Type</th>
+                  <th>File Name</th>
+                  <th>Status</th>
+                  <th>Uploaded</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>
+                      <strong>{doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
+                    </td>
+                    <td>{doc.file_name}</td>
+                    <td>
+                      <span
+                        className="status-badge"
+                        style={{ 
+                          background: getStatusColor(doc.status), 
+                          color: '#fff',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '999px',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {doc.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td>{new Date(doc.uploaded_at).toLocaleDateString()}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => handleDownload(doc)}
+                          className="btn-secondary"
+                          style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                        >
+                          View PDF
+                        </button>
+                        <label
+                          className="btn-secondary"
+                          style={{ 
+                            padding: '0.375rem 0.75rem', 
+                            fontSize: '0.875rem',
+                            cursor: 'pointer',
+                            display: 'inline-block'
+                          }}
+                        >
+                          Replace
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            onChange={(e) => {
+                              if (e.target.files[0]) {
+                                handleReplace(doc, e.target.files[0])
+                                e.target.value = '' // Reset input
+                              }
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        <button
+                          onClick={() => handleDelete(doc.id)}
+                          className="btn-danger"
+                          style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {documents.length > 0 && documents.some(doc => doc.counselor_comment) && (
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+            <h4 style={{ marginBottom: '1rem', color: '#1e293b' }}>Counselor Comments</h4>
+            {documents.filter(doc => doc.counselor_comment).map((doc) => (
+              <div key={doc.id} style={{ marginBottom: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '0.5rem' }}>
+                <strong style={{ color: '#1e293b' }}>
+                  {doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                </strong>
+                <p style={{ margin: '0.5rem 0 0 0', color: '#475569' }}>{doc.counselor_comment}</p>
               </div>
             ))}
           </div>
@@ -370,6 +554,8 @@ function ApplicationsPage() {
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingApp, setEditingApp] = useState(null)
+  const [viewingApp, setViewingApp] = useState(null)
   const [formData, setFormData] = useState({
     university_name: '',
     program_name: '',
@@ -377,6 +563,8 @@ function ApplicationsPage() {
     degree_level: '',
     intake: '',
     application_deadline: '',
+    scholarship_amount: '',
+    scholarship_currency: 'USD',
   })
 
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
@@ -403,41 +591,129 @@ function ApplicationsPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
-      const res = await fetch(`${API_BASE}/student/applications`, {
-        method: 'POST',
+      const url = editingApp 
+        ? `${API_BASE}/student/applications/${editingApp.id}`
+        : `${API_BASE}/student/applications`
+      const method = editingApp ? 'PATCH' : 'POST'
+      
+      const payload = {
+        ...formData,
+        application_deadline: formData.application_deadline || null,
+        scholarship_amount: formData.scholarship_amount ? parseFloat(formData.scholarship_amount) : null,
+        scholarship_currency: formData.scholarship_amount ? formData.scholarship_currency : null,
+      }
+      
+      // For PATCH, only send changed fields
+      if (editingApp) {
+        const changed = {}
+        Object.keys(payload).forEach(key => {
+          if (payload[key] !== (editingApp[key] || '')) {
+            changed[key] = payload[key]
+          }
+        })
+        Object.keys(changed).forEach(key => {
+          if (changed[key] === '' || changed[key] === null) {
+            changed[key] = null
+          }
+        })
+        Object.assign(payload, changed)
+      }
+      
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          ...formData,
-          application_deadline: formData.application_deadline || null,
-        }),
+        body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error('Failed to create application')
+      if (!res.ok) throw new Error(editingApp ? 'Failed to update application' : 'Failed to create application')
       await fetchApplications()
       setShowForm(false)
-      setFormData({
-        university_name: '',
-        program_name: '',
-        country: '',
-        degree_level: '',
-        intake: '',
-        application_deadline: '',
-      })
+      setEditingApp(null)
+      resetForm()
     } catch (err) {
-      alert('Failed to create application: ' + err.message)
+      alert(err.message)
     }
   }
 
-  const handleSubmitApplication = async (appId) => {
+  const handleEdit = (app) => {
+    setEditingApp(app)
+    setFormData({
+      university_name: app.university_name || '',
+      program_name: app.program_name || '',
+      country: app.country || '',
+      degree_level: app.degree_level || '',
+      intake: app.intake || '',
+      application_deadline: app.application_deadline ? new Date(app.application_deadline).toISOString().split('T')[0] : '',
+      scholarship_amount: app.scholarship_amount || '',
+      scholarship_currency: app.scholarship_currency || 'USD',
+    })
+    setShowForm(true)
+  }
+
+  const handleDelete = async (appId) => {
+    if (!window.confirm('Are you sure you want to delete this application?')) return
     try {
-      const res = await fetch(`${API_BASE}/student/applications/${appId}/submit`, {
-        method: 'PATCH',
+      const res = await fetch(`${API_BASE}/student/applications/${appId}`, {
+        method: 'DELETE',
         headers: { ...authHeaders },
       })
-      if (!res.ok) throw new Error('Failed to submit application')
+      if (!res.ok) throw new Error('Failed to delete application')
       await fetchApplications()
     } catch (err) {
-      alert('Failed to submit: ' + err.message)
+      alert('Failed to delete: ' + err.message)
     }
+  }
+
+  const handleStatusChange = async (appId, newStatus) => {
+    try {
+      const res = await fetch(`${API_BASE}/student/applications/${appId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) throw new Error('Failed to update status')
+      await fetchApplications()
+    } catch (err) {
+      alert('Failed to update status: ' + err.message)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      university_name: '',
+      program_name: '',
+      country: '',
+      degree_level: '',
+      intake: '',
+      application_deadline: '',
+      scholarship_amount: '',
+      scholarship_currency: 'USD',
+    })
+  }
+
+  const getStatusColor = (status) => {
+    const statusMap = {
+      'draft': '#6b7280',
+      'submitted': '#3b82f6',
+      'applied': '#3b82f6',
+      'under_review': '#f59e0b',
+      'accepted': '#10b981',
+      'rejected': '#ef4444',
+      'deferred': '#8b5cf6',
+      'waitlisted': '#f59e0b',
+    }
+    return statusMap[status] || '#6b7280'
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '—'
+    return new Date(dateString).toLocaleDateString()
+  }
+
+  const formatScholarship = (app) => {
+    if (!app.scholarship_amount) return '—'
+    const amount = parseFloat(app.scholarship_amount).toLocaleString()
+    const currency = app.scholarship_currency || 'USD'
+    return `${amount} ${currency}`
   }
 
   return (
@@ -445,10 +721,19 @@ function ApplicationsPage() {
       <header className="student-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1>Application Center</h1>
-            <p>Track your university applications</p>
+            <h1>Applications</h1>
+            <p>Manage your university applications</p>
           </div>
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+          <button 
+            onClick={() => {
+              setShowForm(!showForm)
+              if (showForm) {
+                setEditingApp(null)
+                resetForm()
+              }
+            }} 
+            className="btn-primary"
+          >
             {showForm ? 'Cancel' : '+ New Application'}
           </button>
         </div>
@@ -456,7 +741,7 @@ function ApplicationsPage() {
 
       {showForm && (
         <div className="panel">
-          <h3>Create New Application</h3>
+          <h3>{editingApp ? 'Edit Application' : 'Create New Application'}</h3>
           <form onSubmit={handleSubmit} className="application-form">
             <div className="form-grid">
               <div>
@@ -523,8 +808,35 @@ function ApplicationsPage() {
                   className="form-input"
                 />
               </div>
+              <div>
+                <label>Scholarship Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.scholarship_amount}
+                  onChange={(e) => setFormData({ ...formData, scholarship_amount: e.target.value })}
+                  className="form-input"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label>Scholarship Currency</label>
+                <select
+                  value={formData.scholarship_currency}
+                  onChange={(e) => setFormData({ ...formData, scholarship_currency: e.target.value })}
+                  className="form-select"
+                >
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="CAD">CAD</option>
+                  <option value="AUD">AUD</option>
+                </select>
+              </div>
             </div>
-            <button type="submit" className="btn-primary">Create Application</button>
+            <button type="submit" className="btn-primary">
+              {editingApp ? 'Update Application' : 'Create Application'}
+            </button>
           </form>
         </div>
       )}
@@ -536,204 +848,250 @@ function ApplicationsPage() {
           <p>No applications yet. Create your first application to get started.</p>
         </div>
       ) : (
-        <div className="applications-grid">
-          {applications.map((app) => (
-            <div key={app.id} className="application-card">
-              <div className="application-header">
-                <h3>{app.university_name}</h3>
-                <span className={`status-badge status-${app.status}`}>
-                  {app.status.replace(/_/g, ' ')}
-                </span>
+        <div className="panel">
+          <div className="table-wrapper">
+            <table className="applications-table">
+              <thead>
+                <tr>
+                  <th>University Name</th>
+                  <th>Applied On</th>
+                  <th>Status</th>
+                  <th>Scholarship</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((app) => (
+                  <tr 
+                    key={app.id}
+                    onClick={() => setViewingApp(app)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>
+                      <div>
+                        <strong>{app.university_name}</strong>
+                        <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.25rem' }}>
+                          {app.program_name} • {app.country} • {app.degree_level}
+                        </div>
+                      </div>
+                    </td>
+                    <td>{formatDate(app.submitted_at || app.created_at)}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={app.status}
+                        onChange={(e) => handleStatusChange(app.id, e.target.value)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.375rem',
+                          border: `1px solid ${getStatusColor(app.status)}`,
+                          background: 'white',
+                          color: getStatusColor(app.status),
+                          fontWeight: 600,
+                          fontSize: '0.875rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="applied">Applied</option>
+                        <option value="under_review">Under Review</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="deferred">Deferred</option>
+                        <option value="waitlisted">Waitlisted</option>
+                      </select>
+                    </td>
+                    <td>{formatScholarship(app)}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleEdit(app)}
+                          className="btn-secondary"
+                          style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(app.id)}
+                          className="btn-danger"
+                          style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {viewingApp && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setViewingApp(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div 
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: '0.75rem',
+              padding: '2rem',
+              maxWidth: '600px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, color: '#1e293b' }}>Application Details</h2>
+              <button
+                onClick={() => setViewingApp(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  padding: '0.25rem 0.5rem',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>University Name</strong>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '1.125rem', color: '#1e293b' }}>{viewingApp.university_name}</p>
               </div>
-              <p className="application-program">{app.program_name}</p>
-              <div className="application-details">
-                <span>{app.country}</span>
-                <span>•</span>
-                <span>{app.degree_level}</span>
-                <span>•</span>
-                <span>{app.intake}</span>
+              
+              <div>
+                <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Program Name</strong>
+                <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{viewingApp.program_name}</p>
               </div>
-              {app.application_deadline && (
-                <p className="application-deadline">
-                  Deadline: {new Date(app.application_deadline).toLocaleDateString()}
-                </p>
-              )}
-              {app.ai_suggestions && (
-                <div className="ai-suggestions">
-                  <strong>AI Suggestions:</strong>
-                  <p>{app.ai_suggestions}</p>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Country</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{viewingApp.country}</p>
+                </div>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Degree Level</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{viewingApp.degree_level}</p>
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Intake</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{viewingApp.intake}</p>
+                </div>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Status</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>
+                    <span style={{
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '999px',
+                      fontSize: '0.875rem',
+                      fontWeight: 600,
+                      background: `${getStatusColor(viewingApp.status)}20`,
+                      color: getStatusColor(viewingApp.status),
+                    }}>
+                      {viewingApp.status.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Created On</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{formatDate(viewingApp.created_at)}</p>
+                </div>
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Applied On</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{formatDate(viewingApp.submitted_at || viewingApp.created_at)}</p>
+                </div>
+              </div>
+              
+              {viewingApp.application_deadline && (
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Application Deadline</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{formatDate(viewingApp.application_deadline)}</p>
                 </div>
               )}
-              {app.status === 'draft' && (
-                <button
-                  onClick={() => handleSubmitApplication(app.id)}
-                  className="btn-primary"
-                  style={{ width: '100%', marginTop: '1rem' }}
-                >
-                  Submit Application
-                </button>
+              
+              {viewingApp.decision_date && (
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Decision Date</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b' }}>{formatDate(viewingApp.decision_date)}</p>
+                </div>
+              )}
+              
+              {viewingApp.scholarship_amount && (
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Scholarship</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b', fontSize: '1.125rem', fontWeight: 600 }}>
+                    {formatScholarship(viewingApp)}
+                  </p>
+                </div>
+              )}
+              
+              {viewingApp.ai_suggestions && (
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>AI Suggestions</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b', whiteSpace: 'pre-wrap' }}>{viewingApp.ai_suggestions}</p>
+                </div>
+              )}
+              
+              {viewingApp.counselor_notes && (
+                <div>
+                  <strong style={{ color: '#64748b', fontSize: '0.875rem' }}>Counselor Notes</strong>
+                  <p style={{ margin: '0.25rem 0 0 0', color: '#1e293b', whiteSpace: 'pre-wrap' }}>{viewingApp.counselor_notes}</p>
+                </div>
               )}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Visa Center
-function VisaPage() {
-  const { token } = useAuth()
-  const [visa, setVisa] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
-    country: '',
-    visa_type: 'student',
-    estimated_processing_days: '',
-  })
-
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
-
-  useEffect(() => {
-    fetchVisa()
-  }, [token])
-
-  const fetchVisa = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/student/visa`, {
-        headers: { ...authHeaders },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setVisa(data)
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCreate = async (e) => {
-    e.preventDefault()
-    try {
-      const res = await fetch(`${API_BASE}/student/visa`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({
-          ...formData,
-          estimated_processing_days: formData.estimated_processing_days ? parseInt(formData.estimated_processing_days) : null,
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to create visa application')
-      await fetchVisa()
-      setShowForm(false)
-    } catch (err) {
-      alert('Failed to create visa application: ' + err.message)
-    }
-  }
-
-  return (
-    <div className="student-page">
-      <header className="student-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1>Visa Center</h1>
-            <p>Track your visa application progress</p>
-          </div>
-          {!visa && (
-            <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-              {showForm ? 'Cancel' : '+ Start Visa Application'}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {showForm && !visa && (
-        <div className="panel">
-          <h3>Create Visa Application</h3>
-          <form onSubmit={handleCreate} className="visa-form">
-            <div className="form-grid">
-              <div>
-                <label>Country *</label>
-                <input
-                  type="text"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  required
-                  className="form-input"
-                />
-              </div>
-              <div>
-                <label>Visa Type *</label>
-                <select
-                  value={formData.visa_type}
-                  onChange={(e) => setFormData({ ...formData, visa_type: e.target.value })}
-                  required
-                  className="form-select"
-                >
-                  <option value="student">Student Visa</option>
-                  <option value="tourist">Tourist Visa</option>
-                  <option value="work">Work Visa</option>
-                </select>
-              </div>
-              <div>
-                <label>Estimated Processing Days</label>
-                <input
-                  type="number"
-                  value={formData.estimated_processing_days}
-                  onChange={(e) => setFormData({ ...formData, estimated_processing_days: e.target.value })}
-                  className="form-input"
-                />
-              </div>
+            
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                onClick={() => {
+                  setViewingApp(null)
+                  handleEdit(viewingApp)
+                }}
+                className="btn-secondary"
+                style={{ flex: 1 }}
+              >
+                Edit Application
+              </button>
+              <button
+                onClick={() => {
+                  setViewingApp(null)
+                  handleDelete(viewingApp.id)
+                }}
+                className="btn-danger"
+                style={{ flex: 1 }}
+              >
+                Delete Application
+              </button>
             </div>
-            <button type="submit" className="btn-primary">Create Visa Application</button>
-          </form>
-        </div>
-      )}
-
-      {loading ? (
-        <p>Loading visa information...</p>
-      ) : visa ? (
-        <div className="panel">
-          <div className="visa-status">
-            <h3>Visa Status: <span className={`status-badge status-${visa.status}`}>{visa.status.replace(/_/g, ' ')}</span></h3>
-            {visa.current_stage && <p>Current Stage: {visa.current_stage}</p>}
           </div>
-          <div className="visa-details">
-            <div className="detail-item">
-              <strong>Country:</strong> {visa.country}
-            </div>
-            <div className="detail-item">
-              <strong>Visa Type:</strong> {visa.visa_type}
-            </div>
-            {visa.interview_date && (
-              <div className="detail-item">
-                <strong>Interview Date:</strong> {new Date(visa.interview_date).toLocaleString()}
-              </div>
-            )}
-            {visa.interview_location && (
-              <div className="detail-item">
-                <strong>Interview Location:</strong> {visa.interview_location}
-              </div>
-            )}
-            {visa.estimated_processing_days && (
-              <div className="detail-item">
-                <strong>Estimated Processing:</strong> {visa.estimated_processing_days} days
-              </div>
-            )}
-            {visa.counselor_notes && (
-              <div className="detail-item">
-                <strong>Counselor Notes:</strong>
-                <p>{visa.counselor_notes}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="panel">
-          <p>No visa application yet. Start one to begin tracking your visa progress.</p>
         </div>
       )}
     </div>
@@ -817,169 +1175,6 @@ function PaymentsPage() {
             </div>
           ))}
         </div>
-      )}
-    </div>
-  )
-}
-
-// University Comparison
-function ComparisonPage() {
-  const { token } = useAuth()
-  const [applications, setApplications] = useState([])
-  const [comparison, setComparison] = useState([])
-  const [selectedIds, setSelectedIds] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
-
-  useEffect(() => {
-    fetchApplications()
-  }, [token])
-
-  useEffect(() => {
-    if (selectedIds.length > 0) {
-      fetchComparison()
-    } else {
-      setComparison([])
-    }
-  }, [selectedIds])
-
-  const fetchApplications = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/student/applications`, {
-        headers: { ...authHeaders },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setApplications(data)
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchComparison = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/student/applications/compare?application_ids=${selectedIds.join(',')}`, {
-        headers: { ...authHeaders },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setComparison(data)
-      }
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const toggleSelection = (appId) => {
-    setSelectedIds(prev => 
-      prev.includes(appId) 
-        ? prev.filter(id => id !== appId)
-        : [...prev, appId]
-    )
-  }
-
-  return (
-    <div className="student-page">
-      <header className="student-header">
-        <h1>University Comparison</h1>
-        <p>Compare universities side-by-side</p>
-      </header>
-
-      {loading ? (
-        <p>Loading applications...</p>
-      ) : applications.length === 0 ? (
-        <div className="panel">
-          <p>No applications to compare. Create applications first.</p>
-        </div>
-      ) : (
-        <>
-          <div className="panel">
-            <h3>Select Applications to Compare (2-4)</h3>
-            <div className="comparison-selector">
-              {applications.map((app) => (
-                <label key={app.id} className="comparison-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(app.id)}
-                    onChange={() => toggleSelection(app.id)}
-                    disabled={!selectedIds.includes(app.id) && selectedIds.length >= 4}
-                  />
-                  <span>{app.university_name} - {app.program_name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {comparison.length > 0 && (
-            <div className="panel">
-              <h3>Comparison</h3>
-              <div className="comparison-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>University</th>
-                      {comparison.map((uni, idx) => (
-                        <th key={idx}>{uni.university_name}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Program</strong></td>
-                      {comparison.map((uni, idx) => (
-                        <td key={idx}>{uni.program_name}</td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td><strong>Country</strong></td>
-                      {comparison.map((uni, idx) => (
-                        <td key={idx}>{uni.country}</td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td><strong>Status</strong></td>
-                      {comparison.map((uni, idx) => (
-                        <td key={idx}>
-                          <span className={`status-badge status-${uni.application_status}`}>
-                            {uni.application_status}
-                          </span>
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td><strong>AI Score</strong></td>
-                      {comparison.map((uni, idx) => (
-                        <td key={idx}>
-                          {uni.ai_recommendation_score ? `${uni.ai_recommendation_score}/100` : 'N/A'}
-                        </td>
-                      ))}
-                    </tr>
-                    {comparison.some(u => u.highlights) && (
-                      <tr>
-                        <td><strong>Highlights</strong></td>
-                        {comparison.map((uni, idx) => (
-                          <td key={idx}>
-                            {uni.highlights && (
-                              <ul>
-                                {uni.highlights.map((h, i) => (
-                                  <li key={i}>{h}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
       )}
     </div>
   )
@@ -1246,17 +1441,9 @@ export default function StudentDashboard() {
             <span className="nav-icon">🎓</span>
             <span>Applications</span>
           </NavLink>
-          <NavLink to="/student/dashboard/visa" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            <span className="nav-icon">✈️</span>
-            <span>Visa</span>
-          </NavLink>
           <NavLink to="/student/dashboard/payments" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
             <span className="nav-icon">💳</span>
             <span>Payments</span>
-          </NavLink>
-          <NavLink to="/student/dashboard/compare" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            <span className="nav-icon">⚖️</span>
-            <span>Compare</span>
           </NavLink>
           <NavLink to="/student/dashboard/messages" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
             <span className="nav-icon">💬</span>
@@ -1276,9 +1463,7 @@ export default function StudentDashboard() {
           <Route index element={<DashboardOverview />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="applications" element={<ApplicationsPage />} />
-          <Route path="visa" element={<VisaPage />} />
           <Route path="payments" element={<PaymentsPage />} />
-          <Route path="compare" element={<ComparisonPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="timeline" element={<TimelinePage />} />
         </Routes>

@@ -68,6 +68,8 @@ class ApplicationCreate(BaseModel):
     degree_level: str = Field(..., max_length=50)
     intake: str = Field(..., max_length=50)
     application_deadline: Optional[datetime] = None
+    scholarship_amount: Optional[float] = None
+    scholarship_currency: Optional[str] = Field(default=None, max_length=10)
 
 
 class ApplicationResponse(BaseModel):
@@ -83,6 +85,8 @@ class ApplicationResponse(BaseModel):
     application_deadline: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
     decision_date: Optional[datetime] = None
+    scholarship_amount: Optional[float] = None
+    scholarship_currency: Optional[str] = None
     ai_suggestions: Optional[str] = None
     counselor_notes: Optional[str] = None
     created_at: datetime
@@ -93,8 +97,16 @@ class ApplicationResponse(BaseModel):
 
 
 class ApplicationUpdate(BaseModel):
-    """Schema for updating application status."""
+    """Schema for updating application."""
+    university_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    program_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    country: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    degree_level: Optional[str] = Field(default=None, max_length=50)
+    intake: Optional[str] = Field(default=None, max_length=50)
     status: Optional[str] = None
+    application_deadline: Optional[datetime] = None
+    scholarship_amount: Optional[float] = None
+    scholarship_currency: Optional[str] = Field(default=None, max_length=10)
     counselor_notes: Optional[str] = None
 
 

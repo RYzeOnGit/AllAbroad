@@ -55,6 +55,24 @@ export default function AdminLogin() {
 
       const data = await response.json()
       console.log('Login success:', data.role)
+      
+      // Validate that the returned role matches the selected mode
+      if (mode === 'staff') {
+        // Staff mode should only accept 'admin' or 'user' roles
+        if (data.role !== 'admin' && data.role !== 'user') {
+          setError('This account is not authorized for staff login. Please sign in as student.')
+          setLoading(false)
+          return
+        }
+      } else if (mode === 'student') {
+        // Student mode should only accept 'lead' role
+        if (data.role !== 'lead') {
+          setError('This account is not authorized for student login. Please sign in as staff.')
+          setLoading(false)
+          return
+        }
+      }
+      
       login(data.access_token, data.role)
       if (data.role === 'lead') {
         navigate('/student/dashboard')

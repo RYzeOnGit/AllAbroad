@@ -2158,6 +2158,326 @@ export function AdminMessagesPage() {
   )
 }
 
+// Admin Documents Page
+export function AdminDocumentsPage() {
+  const { token } = useAuth()
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+  const [students, setStudents] = useState([])
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [documentsLoading, setDocumentsLoading] = useState(false)
+
+  useEffect(() => {
+    fetchStudents()
+  }, [token])
+
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchDocuments(selectedStudent.id)
+    }
+  }, [selectedStudent, token])
+
+  const fetchStudents = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/students`, {
+        headers: { ...authHeaders },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setStudents(data)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchDocuments = async (studentId) => {
+    if (!studentId) return
+    setDocumentsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/admin/students/${studentId}/documents`, {
+        headers: { ...authHeaders },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDocuments(data)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDocumentsLoading(false)
+    }
+  }
+
+  const handleDownload = async (studentId, docId) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/students/${studentId}/documents/${docId}/download`, {
+        headers: { ...authHeaders },
+      })
+      if (!res.ok) {
+        throw new Error('Failed to download document')
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      // Open PDF in new tab for viewing
+      window.open(url, '_blank')
+      // Clean up the URL after a delay to allow the browser to load it
+      setTimeout(() => window.URL.revokeObjectURL(url), 100)
+    } catch (err) {
+      alert('Failed to open document: ' + err.message)
+    }
+  }
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: '#fbbf24',
+      approved: '#10b981',
+      rejected: '#ef4444',
+      needs_revision: '#f59e0b',
+    }
+    return colors[status] || '#64748b'
+  }
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column',
+      backgroundColor: '#0a0e27',
+      color: '#e0e7ff',
+      minHeight: '100%',
+      width: '100%'
+    }}>
+      <header className="admin-header" style={{ marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#ffffff' }}>Student Documents</h1>
+        <p style={{ color: '#9ca3af' }}>View and access documents uploaded by students.</p>
+      </header>
+
+      <div style={{ 
+        display: 'flex', 
+        gap: '1rem', 
+        flex: 1,
+        minHeight: 0
+      }}>
+        {/* Students List */}
+        <div style={{ 
+          width: '320px', 
+          backgroundColor: '#1a1f3a',
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
+          <div style={{ 
+            padding: '1.25rem', 
+            borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)'
+          }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '1rem', 
+              fontWeight: 600, 
+              color: '#ffffff',
+              letterSpacing: '0.5px'
+            }}>
+              Students
+            </h3>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+            ) : students.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No students found</div>
+            ) : (
+              students.map((student) => (
+                <div
+                  key={student.id}
+                  onClick={() => setSelectedStudent(student)}
+                  style={{
+                    padding: '1rem 1.25rem',
+                    borderBottom: '1px solid rgba(99, 102, 241, 0.1)',
+                    cursor: 'pointer',
+                    backgroundColor: selectedStudent?.id === student.id 
+                      ? 'rgba(99, 102, 241, 0.2)' 
+                      : 'transparent',
+                    transition: 'all 0.2s ease',
+                    borderLeft: selectedStudent?.id === student.id 
+                      ? '3px solid #6366f1' 
+                      : '3px solid transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedStudent?.id !== student.id) {
+                      e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedStudent?.id !== student.id) {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }
+                  }}
+                >
+                  <div style={{ 
+                    fontWeight: 600, 
+                    marginBottom: '0.25rem',
+                    color: '#ffffff',
+                    fontSize: '0.9rem',
+                  }}>
+                    {student.full_name || student.email}
+                  </div>
+                  <div style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#9ca3af',
+                  }}>
+                    {student.email}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Documents Area */}
+        <div style={{ 
+          flex: 1,
+          backgroundColor: '#1a1f3a',
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          overflow: 'hidden', 
+          display: 'flex', 
+          flexDirection: 'column',
+          minWidth: 0
+        }}>
+          {!selectedStudent ? (
+            <div style={{ 
+              flex: 1, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              color: '#6b7280',
+              flexDirection: 'column',
+              gap: '0.5rem'
+            }}>
+              <div style={{ 
+                fontSize: '4rem', 
+                opacity: 0.2,
+                filter: 'drop-shadow(0 0 10px rgba(99, 102, 241, 0.3))'
+              }}>
+                📄
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: 500, color: '#9ca3af' }}>
+                Select a student to view their documents
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ 
+                padding: '1.25rem', 
+                borderBottom: '1px solid rgba(99, 102, 241, 0.2)',
+                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)'
+              }}>
+                <div style={{ 
+                  fontWeight: 600, 
+                  fontSize: '1rem', 
+                  color: '#ffffff', 
+                  marginBottom: '0.25rem' 
+                }}>
+                  {selectedStudent.full_name || selectedStudent.email}
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                  {selectedStudent.email}
+                </div>
+              </div>
+              <div style={{ 
+                flex: 1, 
+                overflowY: 'auto', 
+                padding: '1.5rem'
+              }}>
+                {documentsLoading ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>Loading documents...</div>
+                ) : documents.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem', opacity: 0.3 }}>📄</div>
+                    <div>No documents uploaded yet.</div>
+                  </div>
+                ) : (
+                  <div className="panel">
+                    <div className="table-wrapper">
+                      <table className="leads-table">
+                        <thead>
+                          <tr>
+                            <th>Document Type</th>
+                            <th>File Name</th>
+                            <th>Status</th>
+                            <th>Uploaded</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {documents.map((doc) => (
+                            <tr key={doc.id}>
+                              <td>
+                                <strong>{doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
+                              </td>
+                              <td>{doc.file_name}</td>
+                              <td>
+                                <span
+                                  className="status-badge"
+                                  style={{ 
+                                    background: getStatusColor(doc.status), 
+                                    color: '#fff',
+                                    padding: '0.25rem 0.75rem',
+                                    borderRadius: '999px',
+                                    fontSize: '0.875rem',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {doc.status.replace(/_/g, ' ')}
+                                </span>
+                              </td>
+                              <td>{new Date(doc.uploaded_at).toLocaleDateString()}</td>
+                              <td>
+                                <button
+                                  onClick={() => handleDownload(selectedStudent.id, doc.id)}
+                                  className="nav-link"
+                                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                >
+                                  View PDF
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {documents.some(doc => doc.counselor_comment) && (
+                      <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                        <h4 style={{ marginBottom: '1rem', color: '#ffffff' }}>Counselor Comments</h4>
+                        {documents.filter(doc => doc.counselor_comment).map((doc) => (
+                          <div key={doc.id} style={{ marginBottom: '1rem', padding: '1rem', background: 'rgba(15, 23, 42, 0.6)', borderRadius: '0.5rem' }}>
+                            <strong style={{ color: '#ffffff' }}>
+                              {doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                            </strong>
+                            <p style={{ margin: '0.5rem 0 0 0', color: '#9ca3af' }}>{doc.counselor_comment}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // --- Pending (approve users) count: shared so ApprovalsPage can decrement on approve/reject
 const PendingCountContext = createContext({ count: 0, decrementCount: () => {} })
 
@@ -2476,6 +2796,12 @@ export default function AdminDashboard() {
             className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
           >
             <span className="nav-text-with-badge">Messages <UnreadMessagesBadge /></span>
+          </NavLink>
+          <NavLink
+            to="/admin/dashboard/documents"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+          >
+            Documents
           </NavLink>
         </nav>
         <div className="sidebar-bottom">

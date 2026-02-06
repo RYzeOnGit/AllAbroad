@@ -1,13 +1,16 @@
 """Admin-only routes for user approval and management."""
 from datetime import datetime
 from typing import List, Optional
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from app.database import get_session
 from app.models.user import Admin, User, PendingApprovalUser
-from app.models.student import Student, Message
+from app.models.student import Student, Message, Document
+from app.schemas.student import DocumentResponse, StudentResponse
 from app.schemas.pending_user import PendingUserResponse, UserResponse, UserStatusUpdate
 from app.schemas.student import MessageCreate, MessageResponse
 from app.services.approvals import (
@@ -316,3 +319,81 @@ async def mark_all_student_messages_read(
     await session.commit()
     
     return {"marked_read": len(messages)}
+
+
+# Document access routes
+@router.get("/students/{student_id}/documents", response_model=List[DocumentResponse])
+async def get_student_documents(
+    student_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: Admin = Depends(require_role("admin"))
+):
+    """Get all documents for a specific student (admin only)."""
+    # Verify student exists
+    student_stmt = select(Student).where(Student.id == student_id)
+    student_result = await session.execute(student_stmt)
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get all documents for this student
+    statement = select(Document).where(
+        Document.student_id == student_id
+    ).order_by(Document.uploaded_at.desc())
+    
+    result = await session.execute(statement)
+    documents = [DocumentResponse.model_validate(d) for d in result.scalars()]
+    
+    return documents
+
+
+@router.get("/students/{student_id}/documents/{document_id}/download")
+async def download_student_document(
+    student_id: int,
+    document_id: int,
+    session: AsyncSession = Depends(get_session),
+    current_user: Admin = Depends(require_role("admin"))
+):
+    """Download/view a student's document (admin only)."""
+    # Verify student exists
+    student_stmt = select(Student).where(Student.id == student_id)
+    student_result = await session.execute(student_stmt)
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Get document
+    statement = select(Document).where(
+        Document.id == document_id,
+        Document.student_id == student_id
+    )
+    result = await session.execute(statement)
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Convert to absolute path if relative
+    file_path = document.file_path
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found on server: {file_path}")
+    
+    return FileResponse(
+        path=file_path,
+        filename=document.file_name,
+        media_type="application/pdf"
+    )
+
+
+@router.get("/students", response_model=List[StudentResponse])
+async def get_all_students(
+    session: AsyncSession = Depends(get_session),
+    current_user: Admin = Depends(require_role("admin"))
+):
+    """Get all students (admin only)."""
+    statement = select(Student).order_by(Student.created_at.desc())
+    result = await session.execute(statement)
+    students = [StudentResponse.model_validate(s) for s in result.scalars()]
+    return students
