@@ -7,8 +7,8 @@
   # Build command
   command = "npm install && npm run build"
   
-  # Directory to publish (Vite outputs to 'dist' by default)
-  publish = "frontend/dist"
+  # Directory to publish (relative to base directory - Vite outputs to 'dist' by default)
+  publish = "dist"
 
 # Redirect all routes to index.html for React Router (SPA routing)
 [[redirects]]
