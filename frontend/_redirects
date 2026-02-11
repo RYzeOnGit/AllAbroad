@@ -1,0 +1,5 @@
+# Netlify redirects file (alternative to netlify.toml)
+# This ensures React Router works correctly with client-side routing
+
+/*    /index.html   200
+
