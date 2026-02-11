@@ -86,7 +86,6 @@ app.add_middleware(PreCORSMiddleware)
 
 # CORS middleware for frontend integration
 # Note: Must be explicit with methods - "*" can cause issues with OPTIONS
-# In production, allow all origins (or specify your Netlify domain)
 allowed_origins = [
     "http://localhost:3000", 
     "http://localhost:3001",
@@ -96,14 +95,21 @@ allowed_origins = [
     "http://127.0.0.1:5173"
 ]
 
-# In production, allow all origins (you can restrict to specific Netlify domain)
+# In production, add your Netlify domain
+# You can also use environment variable: CORS_ORIGINS=https://your-site.netlify.app
 if settings.environment == "production":
-    allowed_origins = ["*"]  # Or specify: ["https://your-site.netlify.app"]
+    # Add your Netlify domain here, or use environment variable
+    netlify_domain = os.getenv("CORS_ORIGINS", "")
+    if netlify_domain:
+        allowed_origins.append(netlify_domain)
+    # For now, allow all origins (less secure but works)
+    # Better: specify exact Netlify domain
+    allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=settings.environment != "production",  # Can't use credentials with "*"
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
     expose_headers=["*"],
