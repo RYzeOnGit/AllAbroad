@@ -86,16 +86,23 @@ app.add_middleware(PreCORSMiddleware)
 
 # CORS middleware for frontend integration
 # Note: Must be explicit with methods - "*" can cause issues with OPTIONS
+# In production, allow all origins (or specify your Netlify domain)
+allowed_origins = [
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    "http://localhost:5173", 
+    "http://127.0.0.1:3000", 
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:5173"
+]
+
+# In production, allow all origins (you can restrict to specific Netlify domain)
+if settings.environment == "production":
+    allowed_origins = ["*"]  # Or specify: ["https://your-site.netlify.app"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:3001",  # Added - frontend is running on 3001
-        "http://localhost:5173", 
-        "http://127.0.0.1:3000", 
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
